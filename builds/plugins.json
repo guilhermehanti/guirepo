@@ -44,10 +44,10 @@
     },
     {
         "iconUrl": "https://brflix.lat/favicon.png?v=2.3.2",
-        "fileHash": "sha256-57b2c3ecebbc04621c1fd6f865b0625625a0cb64dcb7138bf210310320daf8a3",
+        "fileHash": "sha256-8e15fbb6192129ce60612fc554e1ba66ccd9e4690badc93e88e89e4c698d9979",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 25902,
+        "fileSize": 26984,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -58,7 +58,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "BRFlix",
         "description": "Filmes, S\u00e9ries e Animes Dublados e Legendados em HD no BRFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlix.cs3",
@@ -66,10 +66,10 @@
     },
     {
         "iconUrl": "https://brflix.online/favicon.svg",
-        "fileHash": "sha256-c6d5c69372f9730b32cc06dcab93fca45625f33d14ebc5a3c94d91951ef0b544",
+        "fileHash": "sha256-df5b0415e64ca1a25bc365d825d786b61c146893197497194d5190dd1865ba71",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 41165,
+        "fileSize": 41730,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -78,7 +78,7 @@
         "tvTypes": [
             "Live"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "BRFlixTV",
         "description": "Agenda Esportiva (Ao Vivo e Em Breve) e Canais de TV Ao Vivo em HD no BRFlix TV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlixTV.cs3",
