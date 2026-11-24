@@ -149,6 +149,29 @@
         "name": "PobreFlixTV"
     },
     {
+        "iconUrl": "https://redecanais.ro/templates/echo/img/favicon.ico",
+        "fileHash": "sha256-09ec77a0b897cf2f86fd7a084ab463d6d2c179c2b64304b56addde92a963e954",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 24588,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Cartoon",
+            "TvSeries",
+            "Anime",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "RedeCanais",
+        "description": "Filmes, S\u00e9ries, Desenhos e Animes Dublados e Legendados em HD no RedeCanais",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/RedeCanais.cs3",
+        "name": "RedeCanais"
+    },
+    {
         "iconUrl": "https://www.image2url.com/r2/default/images/1776423716151-20e5aa74-a764-4d60-8575-0851d8ab37df.png",
         "fileHash": "sha256-6d8a34cfa4d190ddccb97b4cd95b5f161dbbcfb8d638118270af7aa2b31315a9",
         "apiVersion": 1,
