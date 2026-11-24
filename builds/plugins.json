@@ -44,10 +44,10 @@
     },
     {
         "iconUrl": "https://brflix.lat/favicon.png?v=2.3.2",
-        "fileHash": "sha256-8c823a203ebfc5c53f80d6f1499f5066246244105606f1dec509cde0db223f62",
+        "fileHash": "sha256-57b2c3ecebbc04621c1fd6f865b0625625a0cb64dcb7138bf210310320daf8a3",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 25521,
+        "fileSize": 25902,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -58,7 +58,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "BRFlix",
         "description": "Filmes, S\u00e9ries e Animes Dublados e Legendados em HD no BRFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlix.cs3",
@@ -66,10 +66,10 @@
     },
     {
         "iconUrl": "https://brflix.online/favicon.svg",
-        "fileHash": "sha256-d069df33bb3cee6cf671c6401f167fb2cb70c86416862db99da1550bc9193ff9",
+        "fileHash": "sha256-c6d5c69372f9730b32cc06dcab93fca45625f33d14ebc5a3c94d91951ef0b544",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 33124,
+        "fileSize": 41165,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -78,7 +78,7 @@
         "tvTypes": [
             "Live"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "BRFlixTV",
         "description": "Agenda Esportiva (Ao Vivo e Em Breve) e Canais de TV Ao Vivo em HD no BRFlix TV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlixTV.cs3",
@@ -170,10 +170,10 @@
     },
     {
         "iconUrl": "https://kairou.space/apple-touch-icon.png",
-        "fileHash": "sha256-09fb87bc4d4d1dac039f7fc20833cfe383c49f3a1ab67167eb1883b953fd6e3f",
+        "fileHash": "sha256-4c117807f621d92834ccbd79c696c64d17981dc54ca2cc417f25bacc70b9ad29",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 24654,
+        "fileSize": 25011,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -184,7 +184,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "Kairou",
         "description": "Filmes, S\u00e9ries e Animes em 4K/HD Dublados e Legendados no Kairou (sem Cloudflare)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/Kairou.cs3",
@@ -192,10 +192,10 @@
     },
     {
         "iconUrl": "https://noveflix.lol/apple-touch-icon.png",
-        "fileHash": "sha256-2582fdfbff523672518defbcb9401663bcae394b4a6c829c4dfdda06e1e374fb",
+        "fileHash": "sha256-b53744e55a35078b3480e8713a4dd654af433a4b39fcd828ef46a50df1bce307",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 21821,
+        "fileSize": 26302,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -204,7 +204,7 @@
         "tvTypes": [
             "TvSeries"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "NoveFlix",
         "description": "Novelas Brasileiras, Turcas, Mexicanas e Programas completos em HD no NoveFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/NoveFlix.cs3",
@@ -234,10 +234,10 @@
     },
     {
         "iconUrl": "https://redecanais.ro/templates/echo/img/favicon.ico",
-        "fileHash": "sha256-09ec77a0b897cf2f86fd7a084ab463d6d2c179c2b64304b56addde92a963e954",
+        "fileHash": "sha256-76387b6db3febb920fc9d1927416d7b9d83ccfbab0f8561b8873c82d2611e56e",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 24588,
+        "fileSize": 24883,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -249,7 +249,7 @@
             "Anime",
             "Movie"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "RedeCanais",
         "description": "Filmes, S\u00e9ries, Desenhos e Animes Dublados e Legendados em HD no RedeCanais",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/RedeCanais.cs3",
@@ -318,10 +318,10 @@
     },
     {
         "iconUrl": "https://tvacabo.top/favicon.png",
-        "fileHash": "sha256-a071fd8687fa344892651745639c5dca19ae2502c4eb00516bc6c64591b3282f",
+        "fileHash": "sha256-229dab4b1458f68b251050c8941c54569c219f2f02157dbcc6c67be42d8c4ecd",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 29899,
+        "fileSize": 35014,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -330,7 +330,7 @@
         "tvTypes": [
             "Live"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "TVACabo",
         "description": "Agenda Esportiva (Jogos do Dia) e +200 Canais de TV Ao Vivo em HD no TV a Cabo",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/TVACabo.cs3",
