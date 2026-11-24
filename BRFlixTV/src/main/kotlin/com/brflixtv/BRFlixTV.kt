@@ -68,19 +68,36 @@ class BRFlixTV : MainAPI() {
             return cached
         }
 
-        val perPage = HTML_CATEGORY_PAGES.amap { (path, label) ->
-            try {
-                val doc = app.get("$mainUrl$path", headers = defaultHeaders()).document
-                BRFlixParser.parseHtmlChannels(doc, mainUrl, label)
-            } catch (_: Exception) {
-                emptyList()
+        val merged = linkedMapOf<String, BrFlixChannel>()
+
+        // 1. Primary source: official JSON API (/api/live/channels) which includes channel logo posters
+        try {
+            val apiJson = app.get(
+                "$mainUrl/api/live/channels",
+                headers = defaultHeaders() + ("Accept" to "application/json")
+            ).text
+            val apiChannels = BRFlixParser.parseApiChannels(apiJson, mainUrl)
+            for (ch in apiChannels) {
+                merged.putIfAbsent(ch.id, ch)
             }
+        } catch (_: Exception) {
+            // Fall back to HTML category scraping below
         }
 
-        val merged = linkedMapOf<String, BrFlixChannel>()
-        for (list in perPage) {
-            for (ch in list) {
-                merged.putIfAbsent(ch.id, ch)
+        // 2. Fallback only if API returned empty
+        if (merged.isEmpty()) {
+            val perPage = HTML_CATEGORY_PAGES.amap { (path, label) ->
+                try {
+                    val doc = app.get("$mainUrl$path", headers = defaultHeaders()).document
+                    BRFlixParser.parseHtmlChannels(doc, mainUrl, label)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+            for (list in perPage) {
+                for (ch in list) {
+                    merged.putIfAbsent(ch.id, ch)
+                }
             }
         }
 
@@ -157,10 +174,17 @@ class BRFlixTV : MainAPI() {
 
             val grouped = channels.groupBy { it.category }
             val order = listOf("Esportes", "TV Aberta", "Filmes e Séries", "Notícias", "Infantil", "Variedades", "Canais")
+            val addedCats = mutableSetOf<String>()
             for (cat in order) {
                 val list = grouped[cat]?.map { it.toSearchResponse() }.orEmpty()
                 if (list.isNotEmpty()) {
                     homeCategories.add(HomePageList(cat, list, isHorizontalImages = true))
+                    addedCats.add(cat)
+                }
+            }
+            for ((cat, catChannels) in grouped) {
+                if (cat !in addedCats && catChannels.isNotEmpty()) {
+                    homeCategories.add(HomePageList(cat, catChannels.map { it.toSearchResponse() }, isHorizontalImages = true))
                 }
             }
         }
@@ -194,9 +218,35 @@ class BRFlixTV : MainAPI() {
         if (url.contains("/evento/")) {
             val slug = url.substringAfter("/evento/").substringBefore("?").trim('/')
             val event = cachedEvents?.firstOrNull { it.slug == slug }
+                ?: getAgendaEvents().firstOrNull { it.slug == slug }
             val title = event?.toDisplayTitle() ?: slug.replace("-", " ")
-            val data = "event::${event?.id ?: "e/$slug"}::e/$slug"
-            return newMovieLoadResponse(title, url, TvType.Live, data) {
+
+            val encodedTargets = mutableListOf<String>()
+            val seenKeys = mutableSetOf<String>()
+
+            if (event != null) {
+                for (target in event.embedTargets) {
+                    val cleanSlug = target.slug.trim().removePrefix("canal/").removePrefix("e/")
+                    if (cleanSlug.isNotBlank() && seenKeys.add("slug:${cleanSlug.lowercase()}")) {
+                        encodedTargets.add("slug::${target.label}::$cleanSlug")
+                    }
+                }
+                for (target in event.embedTargets) {
+                    val emUrl = target.embedUrl?.trim().orEmpty()
+                    if (emUrl.startsWith("http") && seenKeys.add("embed:$emUrl")) {
+                        encodedTargets.add("embed::${target.label}::$emUrl")
+                    }
+                }
+                val playUrl = event.playUrl?.trim().orEmpty()
+                if (playUrl.startsWith("http") && seenKeys.add("embed:$playUrl")) {
+                    encodedTargets.add("embed::BRFlix::$playUrl")
+                }
+            }
+            if (encodedTargets.isEmpty()) {
+                encodedTargets.add("event::${event?.id ?: "e/$slug"}::e/$slug")
+            }
+
+            return newMovieLoadResponse(title, url, TvType.Live, encodedTargets.joinToString("||")) {
                 this.posterUrl = event?.posterUrl
                 this.plot = event?.competition?.takeIf { it.isNotBlank() }
                     ?.let { "$title — $it ao vivo no BRFlix TV" }
@@ -206,6 +256,7 @@ class BRFlixTV : MainAPI() {
 
         val slug = url.substringAfter("/canal/").substringBefore("?").trim('/')
         val ch = cachedChannels?.firstOrNull { it.id == slug }
+            ?: getHtmlChannels().firstOrNull { it.id == slug }
         val title = ch?.title ?: run {
             try {
                 val doc = app.get(url, headers = defaultHeaders()).document
@@ -229,33 +280,96 @@ class BRFlixTV : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val parts = data.split("::")
-        val channelId = if (parts.size >= 2) parts[1] else data.substringAfterLast("/")
-        val directUrl = if (parts.size >= 3) parts[2] else channelId
+        val entries = data.split("||").map { it.trim() }.filter { it.isNotBlank() }
+        val slugTargets = mutableListOf<Pair<String, String>>()
+        val embedTargets = mutableListOf<Pair<String, String>>()
+        var legacyChannel: Pair<String, String>? = null
 
-        val resolveUrl = "$mainUrl/api/resolve/${URLEncoder.encode(channelId, "UTF-8")}?directUrl=${URLEncoder.encode(directUrl, "UTF-8")}"
-        val refererPage = if (parts.firstOrNull() == "event") "$mainUrl/futebol" else "$mainUrl/canal/$channelId"
-
-        val resolveJson = try {
-            app.get(
-                resolveUrl,
-                headers = defaultHeaders(referer = refererPage) + ("Accept" to "application/json")
-            ).text
-        } catch (_: Exception) {
-            return false
+        for (entry in entries) {
+            val parts = entry.split("::")
+            when (parts.firstOrNull()) {
+                "slug" -> {
+                    val lbl = parts.getOrNull(1).orEmpty().ifBlank { "BRFlix" }
+                    val chSlug = parts.getOrNull(2).orEmpty().trim()
+                    if (chSlug.isNotBlank()) slugTargets.add(lbl to chSlug)
+                }
+                "embed" -> {
+                    val lbl = parts.getOrNull(1).orEmpty().ifBlank { "BRFlix" }
+                    val emUrl = parts.getOrNull(2).orEmpty().trim()
+                    if (emUrl.startsWith("http")) embedTargets.add(lbl to emUrl)
+                }
+                "channel", "event" -> {
+                    val chId = parts.getOrNull(1).orEmpty().trim()
+                    val direct = parts.getOrNull(2).orEmpty().trim().ifBlank { chId }
+                    if (chId.isNotBlank()) legacyChannel = chId to direct
+                }
+                else -> {
+                    val fallbackId = entry.substringAfterLast("/")
+                    if (fallbackId.isNotBlank()) legacyChannel = fallbackId to fallbackId
+                }
+            }
         }
 
-        val parsed = BRFlixParser.parseResolveJson(resolveJson, mainUrl)
         var emitted = false
+        val collectedFallbacks = mutableListOf<Pair<String, String>>()
 
-        for (stream in parsed.directStreams) {
-            emitHls(stream.label, stream.url, stream.referer, callback)
-            emitted = true
+        // 1. Resolve event channel slugs (e.g. espn4, espn, max1...) via /api/resolve/<slug>?directUrl=<slug>
+        if (slugTargets.isNotEmpty()) {
+            val resolvedList = slugTargets.take(6).amap { (lbl, chSlug) ->
+                try {
+                    val resolveUrl = "$mainUrl/api/resolve/${URLEncoder.encode(chSlug, "UTF-8")}?directUrl=${URLEncoder.encode(chSlug, "UTF-8")}"
+                    val json = app.get(
+                        resolveUrl,
+                        headers = defaultHeaders(referer = "$mainUrl/futebol") + ("Accept" to "application/json")
+                    ).text
+                    lbl to BRFlixParser.parseResolveJson(json, mainUrl)
+                } catch (_: Exception) {
+                    lbl to BrFlixResolveResult(emptyList(), emptyList())
+                }
+            }
+
+            val seenUrls = mutableSetOf<String>()
+            for ((lbl, parsed) in resolvedList) {
+                for (stream in parsed.directStreams) {
+                    if (seenUrls.add(stream.url)) {
+                        emitHls("$lbl • ${stream.label}", stream.url, stream.referer, callback)
+                        emitted = true
+                    }
+                }
+                collectedFallbacks.addAll(parsed.fallbackEmbeds.map { (prov, u) -> "$lbl ($prov)" to u })
+            }
         }
 
-        if (!emitted && parsed.fallbackEmbeds.isNotEmpty()) {
-            parsed.fallbackEmbeds.amap { (provider, embedUrl) ->
-                if (resolveFallbackEmbed(embedUrl, refererPage, provider, subtitleCallback, callback)) {
+        // 2. Single channel or legacy event resolve
+        if (!emitted && legacyChannel != null) {
+            val (channelId, directUrl) = legacyChannel!!
+            val resolveUrl = "$mainUrl/api/resolve/${URLEncoder.encode(channelId, "UTF-8")}?directUrl=${URLEncoder.encode(directUrl, "UTF-8")}"
+            val refererPage = if (data.startsWith("event::")) "$mainUrl/futebol" else "$mainUrl/canal/$channelId"
+
+            val resolveJson = try {
+                app.get(
+                    resolveUrl,
+                    headers = defaultHeaders(referer = refererPage) + ("Accept" to "application/json")
+                ).text
+            } catch (_: Exception) {
+                ""
+            }
+
+            if (resolveJson.isNotBlank()) {
+                val parsed = BRFlixParser.parseResolveJson(resolveJson, mainUrl)
+                for (stream in parsed.directStreams) {
+                    emitHls(stream.label, stream.url, stream.referer, callback)
+                    emitted = true
+                }
+                collectedFallbacks.addAll(parsed.fallbackEmbeds)
+            }
+        }
+
+        // 3. Fallback embeds (event play_url / embeds[] / resolve fallbackEmbeds)
+        if (!emitted) {
+            val allEmbeds = (embedTargets + collectedFallbacks).distinctBy { it.second }.take(6)
+            allEmbeds.amap { (provider, embedUrl) ->
+                if (resolveFallbackEmbed(embedUrl, "$mainUrl/futebol", provider, subtitleCallback, callback)) {
                     emitted = true
                 }
             }
@@ -283,21 +397,28 @@ class BRFlixTV : MainAPI() {
             "Accept" to "*/*"
         )
         if (streamUrl.endsWith(".txt", ignoreCase = true) || streamUrl.contains("error.txt")) {
-            M3u8Helper.generateM3u8(label, streamUrl, referer, headers = headers).forEach(callback)
-        } else {
-            callback(
-                newExtractorLink(
-                    source = name,
-                    name = label,
-                    url = streamUrl,
-                    type = ExtractorLinkType.M3U8
-                ) {
-                    this.referer = referer
-                    this.quality = Qualities.P1080.value
-                    this.headers = headers
-                }
-            )
+            val generated = try {
+                M3u8Helper.generateM3u8(label, streamUrl, referer, headers = headers)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            if (generated.isNotEmpty()) {
+                generated.forEach(callback)
+                return
+            }
         }
+        callback(
+            newExtractorLink(
+                source = name,
+                name = label,
+                url = streamUrl,
+                type = ExtractorLinkType.M3U8
+            ) {
+                this.referer = referer
+                this.quality = Qualities.P1080.value
+                this.headers = headers
+            }
+        )
     }
 
     private suspend fun resolveFallbackEmbed(

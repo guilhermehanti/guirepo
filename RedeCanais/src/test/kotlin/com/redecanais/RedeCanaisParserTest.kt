@@ -55,7 +55,7 @@ class RedeCanaisParserTest {
 
         assertEquals("101 Dálmatas: A Série", cards[0].title)
         assertEquals("https://redecanais.ro/101-dalmatas-a-serie-lista-de-episodios_4c8a98acd.html", cards[0].url)
-        assertEquals("https://redecanais.ro/tmdb/t/p/w342/A7gzczpkPO68KAtecmJSWZchZce.jpg", cards[0].posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/w342/A7gzczpkPO68KAtecmJSWZchZce.jpg", cards[0].posterUrl)
         assertEquals(1997, cards[0].year)
         assertTrue(cards[0].isSeries)
 

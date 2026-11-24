@@ -205,16 +205,24 @@ class Kairou : MainAPI() {
 
         var emitted = false
         for (src in extracted.sources) {
+            val linkType = when {
+                src.isDash -> ExtractorLinkType.DASH
+                src.isM3u8 -> ExtractorLinkType.M3U8
+                else -> ExtractorLinkType.VIDEO
+            }
             callback(
                 newExtractorLink(
                     source = name,
                     name = src.label,
                     url = src.url,
-                    type = if (src.isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                    type = linkType
                 ) {
                     this.referer = "$mainUrl/"
                     this.quality = src.height
-                    this.headers = mapOf("User-Agent" to USER_AGENT)
+                    this.headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Referer" to "$mainUrl/"
+                    )
                 }
             )
             emitted = true

@@ -65,6 +65,17 @@ internal object RedeCanaisParser {
         return if (trimmed.startsWith("/")) "$cleanBase$trimmed" else "$cleanBase/$trimmed"
     }
 
+    fun resolvePosterUrl(raw: String?, baseUrl: String): String? {
+        val resolved = resolveUrl(raw, baseUrl)
+        if (resolved.isBlank()) return null
+        val tmdbIdx = resolved.indexOf("/tmdb/t/p/", ignoreCase = true)
+        if (tmdbIdx >= 0) {
+            val tmdbPath = resolved.substring(tmdbIdx + "/tmdb".length)
+            return "https://image.tmdb.org$tmdbPath"
+        }
+        return resolved
+    }
+
     fun parseTitleMetadata(rawTitle: String): ParsedTitle {
         val normalized = rawTitle.replace(Regex("""\s+"""), " ").trim()
         val year = YEAR_REGEX.find(normalized)?.groupValues?.get(1)?.toIntOrNull()
@@ -100,7 +111,7 @@ internal object RedeCanaisParser {
             val rawPoster = img?.attr("data-echo")
                 ?.ifBlank { img.attr("data-src") }
                 ?.ifBlank { img.attr("src") }
-            val posterUrl = resolveUrl(rawPoster, baseUrl).ifBlank { null }
+            val posterUrl = resolvePosterUrl(rawPoster, baseUrl)
 
             val parsed = parseTitleMetadata(rawTitle)
             val isSeries = href.contains("lista-de-episodios", ignoreCase = true)

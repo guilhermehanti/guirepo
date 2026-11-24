@@ -230,22 +230,32 @@ class BRFlix : MainAPI() {
                     BRFlixVodParser.parseClickhostInit(initJson, EMBED_ORIGIN)
                 } ?: return@amap
 
-                // Lightweight probe (64 bytes) to skip 502 mirrors and auto-detect HLS vs MP4
+                // Probe stream header/manifest to skip 502 mirrors, HTML errors, and empty HLS manifests (e.g. broken MegaVODS)
                 val probe = app.get(
                     initResult.url,
                     headers = mapOf(
                         "User-Agent" to USER_AGENT,
                         "Referer" to embedUrl,
-                        "Range" to "bytes=0-63"
-                    )
+                        "Origin" to EMBED_ORIGIN,
+                        "Range" to "bytes=0-2047"
+                    ),
+                    timeout = 20L
                 )
                 if (probe.code !in 200..299) return@amap
 
                 val contentType = probe.headers["Content-Type"].orEmpty()
-                val bodyStart = probe.text.take(64).trimStart()
+                val bodySample = probe.text.take(2048)
+                val bodyStart = bodySample.trimStart()
+                if (BRFlixVodParser.looksLikeHtmlError(contentType, bodyStart)) return@amap
+
                 val isHls = initResult.isHls ||
                     contentType.contains("mpegurl", ignoreCase = true) ||
-                    bodyStart.startsWith("#EXTM3U")
+                    bodyStart.startsWith("#EXTM3U", ignoreCase = true)
+
+                if (isHls && !BRFlixVodParser.isPlayableHlsManifest(bodySample)) {
+                    // Reject empty/stub HLS manifests like "#EXTM3U\n#EXT-X-TARGETDURATION:10\n" that hang ExoPlayer forever
+                    return@amap
+                }
 
                 callback(
                     newExtractorLink(

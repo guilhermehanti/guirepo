@@ -152,12 +152,14 @@ class NoveFlix : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val chapterUrl = data.trim()
+        val chapterUrl = NoveFlixParser.normalizeChapterUrl(data.trim(), mainUrl)
         if (chapterUrl.isBlank()) return false
         val panelOrigin = originOf(chapterUrl)
 
         val getResp = app.get(chapterUrl, headers = defaultHeaders(referer = "$panelOrigin/"))
         val getHtml = getResp.text
+        val resolvedPageUrl = getResp.url.ifBlank { chapterUrl }
+        val resolvedOrigin = originOf(resolvedPageUrl)
 
         var streamUrl = NoveFlixParser.extractStreamUrl(getHtml)
 
@@ -165,13 +167,13 @@ class NoveFlix : MainAPI() {
             val form = NoveFlixParser.parseReleaseForm(Jsoup.parse(getHtml))
             if (form != null) {
                 val postResp = app.post(
-                    chapterUrl,
+                    resolvedPageUrl,
                     data = mapOf(
                         "token" to form.token,
                         "issued" to form.issued,
                         "admin_bypass" to "0"
                     ),
-                    headers = defaultHeaders(referer = chapterUrl),
+                    headers = defaultHeaders(referer = resolvedPageUrl) + ("Origin" to resolvedOrigin),
                     cookies = getResp.cookies
                 )
                 streamUrl = NoveFlixParser.extractStreamUrl(postResp.text)
@@ -188,7 +190,7 @@ class NoveFlix : MainAPI() {
                 url = streamUrl,
                 type = if (isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
             ) {
-                this.referer = "$panelOrigin/"
+                this.referer = "$resolvedOrigin/"
                 this.quality = Qualities.P720.value
                 this.headers = mapOf("User-Agent" to USER_AGENT)
             }

@@ -180,4 +180,19 @@ internal object BRFlixVodParser {
         val isHls = root.optBoolean("is_hls", false) || fullUrl.contains(".m3u8", ignoreCase = true)
         return ClickhostInitResult(url = fullUrl, isHls = isHls)
     }
+
+    fun isPlayableHlsManifest(manifestText: String): Boolean {
+        val trimmed = manifestText.trim()
+        if (!trimmed.startsWith("#EXTM3U", ignoreCase = true)) return false
+        return trimmed.contains("#EXTINF:", ignoreCase = true) ||
+            trimmed.contains("#EXT-X-STREAM-INF", ignoreCase = true) ||
+            trimmed.contains("#EXT-X-MEDIA:", ignoreCase = true)
+    }
+
+    fun looksLikeHtmlError(contentType: String, bodyStart: String): Boolean {
+        if (contentType.contains("text/html", ignoreCase = true)) return true
+        val trimmed = bodyStart.trimStart()
+        return trimmed.startsWith("<!DOCTYPE", ignoreCase = true) ||
+            trimmed.startsWith("<html", ignoreCase = true)
+    }
 }

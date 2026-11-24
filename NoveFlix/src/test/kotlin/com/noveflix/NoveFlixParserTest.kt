@@ -91,4 +91,58 @@ class NoveFlixParserTest {
             NoveFlixParser.extractStreamUrl(playerHtml)
         )
     }
+
+    @Test
+    fun parsePanelChapters_parsesJsTotalChaptersPanelLikeBeijoDoVampiro() {
+        val html = """
+            <div class="lista-container"><ul id="chapter-list"></ul></div>
+            <script>
+              function loadChapters() {
+                let totalChapters = 215;
+                let legendados = [2];
+                for (let i = 1; i <= totalChapters; i++) {
+                  let chapterStr = ("00" + i).slice(-3);
+                  let originalUrl = `https://nflixpainel.cc/video/OBV-${'$'}{chapterStr}`;
+                }
+              }
+            </script>
+        """.trimIndent()
+
+        val chapters = NoveFlixParser.parsePanelChapters(Jsoup.parse(html), "https://novefx.biz")
+        assertEquals(215, chapters.size)
+        assertEquals(1, chapters[0].season)
+        assertEquals(1, chapters[0].episode)
+        assertEquals("Capítulo 001", chapters[0].name)
+        assertEquals("https://nflixpainel.cc/liberar.php?slug=OBV-001", chapters[0].url)
+        assertEquals("Capítulo 002 (Legendado)", chapters[1].name)
+        assertEquals("https://nflixpainel.cc/liberar.php?slug=OBV-215", chapters[214].url)
+    }
+
+    @Test
+    fun parsePanelChapters_parsesMultiSeasonJsTemporadasPanel() {
+        val html = """
+            <div class="lista-container"><ul id="chapter-list"></ul></div>
+            <script>
+              function loadChapters() {
+                const temporadas = [
+                  { nome: "TEMPORADA 1", inicio: 1, fim: 3 },
+                  { nome: "TEMPORADA 2", inicio: 4, fim: 5 }
+                ];
+                const legendados = [];
+                for (let i = temporada.inicio; i <= temporada.fim; i++) {
+                  let chapterStr = ("00" + i).slice(-3);
+                  let originalUrl = `https://nflixpainel.cc/video/ROSARIO-${'$'}{chapterStr}`;
+                }
+              }
+            </script>
+        """.trimIndent()
+
+        val chapters = NoveFlixParser.parsePanelChapters(Jsoup.parse(html), "https://novefx.biz")
+        assertEquals(5, chapters.size)
+        assertEquals(1, chapters[0].season)
+        assertEquals(1, chapters[0].episode)
+        assertEquals(2, chapters[3].season)
+        assertEquals(4, chapters[3].episode)
+        assertEquals("https://nflixpainel.cc/liberar.php?slug=ROSARIO-005", chapters[4].url)
+    }
 }

@@ -63,8 +63,34 @@ class KairouParserTest {
         assertTrue(res.sources[0].url.startsWith("https://kairou.space/api/proxy?url="))
 
         assertTrue(res.sources[1].isM3u8)
+        assertFalse(res.sources[1].isDash)
         assertEquals(1080, res.sources[1].height)
         assertEquals(1, res.subtitles.size)
         assertEquals("https://kairou.space/api/sub/pt.vtt", res.subtitles[0].url)
+    }
+
+    @Test
+    fun parseExtractResponse_detectsZephyrDashKind() {
+        val json = """
+            {
+              "ok": true,
+              "sources": [
+                {
+                  "provider": "zephyr",
+                  "serverLabel": "Zephyr (480p)",
+                  "url": "/api/proxy?url=https%3A%2F%2Fproxy.yenime.net%2Fmanifest.mpd%3Furl%3Dfoo",
+                  "kind": "dash",
+                  "resolution": "480p",
+                  "height": 480
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val res = KairouParser.parseExtractResponse(json, "https://kairou.space")
+        assertEquals(1, res.sources.size)
+        assertTrue(res.sources[0].isDash)
+        assertFalse(res.sources[0].isM3u8)
+        assertEquals(480, res.sources[0].height)
     }
 }

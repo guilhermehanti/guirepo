@@ -301,12 +301,45 @@ class TVACabo : MainAPI() {
                     return loadExtractor(currentUrl, subtitleCallback, callback)
                 }
 
-                val html = app.get(currentUrl, headers = defaultHeaders(referer = referer)).text
+                val rawHtml = app.get(currentUrl, headers = defaultHeaders(referer = referer)).text
+                val html = TVACaboParser.decodeObfuscatedCharArray(rawHtml) ?: rawHtml
                 val origin = try {
                     val u = URI(currentUrl)
                     "${u.scheme}://${u.host}"
                 } catch (_: Exception) {
                     mainUrl
+                }
+
+                // Pattern 0A: mastruzcomleite.site Clappr player with reversed-base64 data-c JSON
+                val dataCStreams = TVACaboParser.extractDataCStreams(html)
+                if (dataCStreams.isNotEmpty()) {
+                    dataCStreams.forEachIndexed { idx, streamUrl ->
+                        val streamLabel = if (dataCStreams.size > 1) "$label • Sinal ${idx + 1}" else label
+                        emitHls(streamLabel, streamUrl, "$origin/", callback)
+                    }
+                    return true
+                }
+
+                // Pattern 0B: caldodecana.fun Bitmovin DASH + ClearKey DRM
+                val clearKey = TVACaboParser.extractClearKeyDash(html)
+                if (clearKey != null) {
+                    callback(
+                        newDrmExtractorLink(
+                            source = name,
+                            name = "$label (DASH)",
+                            url = clearKey.url,
+                            type = ExtractorLinkType.DASH,
+                            uuid = CLEARKEY_UUID
+                        ) {
+                            this.kid = clearKey.kidBase64Url
+                            this.key = clearKey.keyBase64Url
+                            this.kty = "oct"
+                            this.referer = ""
+                            this.quality = Qualities.P1080.value
+                            this.headers = mapOf("User-Agent" to USER_AGENT)
+                        }
+                    )
+                    return true
                 }
 
                 // Pattern 1: ReiDosEmbeds var sources = [...]

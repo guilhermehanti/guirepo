@@ -59,4 +59,34 @@ class TVACaboParserTest {
             TVACaboParser.redeCanaisLiveFallback("https://redecanaistv.by/player3/ch.php?canal=cnnbrasil")
         )
     }
+
+    @Test
+    fun extractDataCStreams_decodesReversedBase64HlsUrls() {
+        val html = """
+            <div id="player" data-c="=0XXiM2YuQWZi1WZzVGdy9GczVmL3d3diwiIjNmLzlWYuF2YkJnL3d3diwiIjNmLkVmYtV2clRncvB3clJCLiM2YuMXah5WYjRmciwiI0NnLtVXY6RWZi1WZiwiInJ3buQWZi1WZzVGdy9GczVmIsIyZy9mLzlWYuF2YkJnIbpjIhJCLiQmb11Gdy9GZtEWazNXdy9mYtgXLsFmblNnchJiOiQnIsICZuVXb0J3bk1SYpN3c1J3bi1CetwWYuV2cyFmOjRmciojIzJCLdJCO1NTbugXZk5WavQmb11Gdy9GZtEWazNXdy9mYtgXLsFmblNnch9yN3EzMiR2NxMWYzAjYihTMvYDM3MzN1UTO3EzLvVXalBFU6NGMC5EURVVR3ZnUhpUSzR2T35WTxVTODh3bzZUZwUFUtgzXI9SZyV3YlN3LlZXas9SZ2lGbucWbpR3chZmLkJXYnNXYv8iOzBHd0hmIsICO1NTbugXZk5WavQmb11Gdy9GZtEWazNXdy9mYtgXLsFmblNnch9yN3EzMiR2NxMWYzAjYihTMvYDM3MzN1UTO3EzLvVXalBFU6NGMC5EURVVR3ZnUhpUSzR2T35WTxVTODh3bzZUZwUFUtgzXI9SZyV3YlN3LlZXas9CdzVmYu0WYlJHdzFWakVWbuMXYsRXYv8iOzBHd0hmIbpjI1Jye"></div>
+        """.trimIndent()
+
+        val urls = TVACaboParser.extractDataCStreams(html)
+        assertEquals(2, urls.size)
+        assertTrue(urls[0].startsWith("https://atlas.mediastream.best/live/secure/"))
+        assertTrue(urls[0].endsWith("/index.m3u8"))
+        assertTrue(urls[1].startsWith("https://asgard.fastimg.live/live/secure/"))
+    }
+
+    @Test
+    fun extractClearKeyDash_convertsHexKeysToBase64Url() {
+        val html = """
+            <script>
+              window.url    = "https://live-pv-ta.amazon.fastly-edge.com/cenc.mpd";
+              window.ck_id  = "6f8c882c6744246cc84282b0e0effab5";
+              window.ck_key = "dd9ab472acead0eb65f951b02754e14b";
+            </script>
+        """.trimIndent()
+
+        val ck = TVACaboParser.extractClearKeyDash(html)
+        assertTrue(ck != null)
+        assertEquals("https://live-pv-ta.amazon.fastly-edge.com/cenc.mpd", ck!!.url)
+        assertEquals("b4yILGdEJGzIQoKw4O_6tQ", ck.kidBase64Url)
+        assertEquals("3Zq0cqzq0Otl-VGwJ1ThSw", ck.keyBase64Url)
+    }
 }

@@ -77,4 +77,54 @@ class BRFlixParserTest {
         assertEquals(1, resolved.fallbackEmbeds.size)
         assertEquals("https://embedtv.my/sportv", resolved.fallbackEmbeds[0].second)
     }
+
+    @Test
+    fun parseApiChannels_extractsLogosAndFiltersAdult() {
+        val json = """
+            {
+              "success": true,
+              "data": [
+                {"id":"sportv","name":"SporTV","category":"Esportes","logo_url":"https://reidosembeds.lat/img/sportv.png","is_active":true},
+                {"id":"sexyhot","name":"Sexy Hot","category":"Adulto","logo_url":"https://reidosembeds.lat/img/sexyhot.png","is_active":true},
+                {"id":"offline","name":"Canal Off","category":"Variedades","logo_url":"https://reidosembeds.lat/img/off.png","is_active":false}
+              ]
+            }
+        """.trimIndent()
+
+        val channels = BRFlixParser.parseApiChannels(json, "https://brflix.online")
+        assertEquals(1, channels.size)
+        assertEquals("sportv", channels[0].id)
+        assertEquals("https://reidosembeds.lat/img/sportv.png", channels[0].posterUrl)
+        assertEquals("Esportes", channels[0].category)
+    }
+
+    @Test
+    fun parseAgendaEvents_extractsChannelSlugEmbedTargets() {
+        val json = """
+            {
+              "ok": true,
+              "data": [
+                {
+                  "id": "e/al-nassr-x-al-sadd",
+                  "slug": "al-nassr-x-al-sadd",
+                  "title": "Al-Nassr x Al Sadd",
+                  "competition": "Champions da Ásia",
+                  "status": "live",
+                  "start_time": "2026-11-24T15:15:00-03:00",
+                  "directEmbedUrl": "espn4",
+                  "play_url": "https://abc.ebtv.lat/espn4",
+                  "embeds": [
+                    {"name": "ESPN 4", "slug": "espn4", "embed_url": "https://abc.ebtv.lat/espn4"}
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val events = BRFlixParser.parseAgendaEvents(json)
+        assertEquals(1, events.size)
+        assertEquals(1, events[0].embedTargets.size)
+        assertEquals("espn4", events[0].embedTargets[0].slug)
+        assertEquals("ESPN 4", events[0].embedTargets[0].label)
+    }
 }

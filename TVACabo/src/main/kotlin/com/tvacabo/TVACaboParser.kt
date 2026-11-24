@@ -27,6 +27,12 @@ internal data class TvCaboEvent(
     val embeds: List<TvCaboEmbed>
 )
 
+internal data class ClearKeyStream(
+    val url: String,
+    val kidBase64Url: String,
+    val keyBase64Url: String
+)
+
 internal object TVACaboParser {
 
     private val BLOCKED_KEYWORDS = listOf(
@@ -36,6 +42,16 @@ internal object TVACaboParser {
     private val SPORTS_API_REGEX = Regex("""https?://[^\s"'<>\\]+/sports\b""", RegexOption.IGNORE_CASE)
     private val DIRECT_SRC_REGEX = Regex("""(?:const|var|let)\s+(?:src|SRC)\s*=\s*["'](https?://[^"']+)["']""")
     private val M3U8_REGEX = Regex("""https?://[^\s"'<>\\]+\.m3u8(?:\?[^\s"'<>\\]*)?""", RegexOption.IGNORE_CASE)
+    private val DATA_C_REGEX = Regex("""data-c=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+    private val OBF_ARRAY_REGEX = Regex("""var\s+\w+\s*=\s*\[([\s\S]*?)\]\s*;""")
+    private val OBF_ITEM_REGEX = Regex(""""([A-Za-z0-9+/=]{8,})"""")
+    private val OBF_OFFSET_REGEX = Regex("""fromCharCode\s*\([\s\S]*?-\s*(\d+)\s*\)""")
+    private val WINDOW_URL_REGEX = Regex("""window\.url\s*=\s*["'](https?://[^"']+)["']""")
+    private val WINDOW_CK_ID_REGEX = Regex("""window\.ck_id\s*=\s*["']([^"']+)["']""")
+    private val WINDOW_CK_KEY_REGEX = Regex("""window\.ck_key\s*=\s*["']([^"']+)["']""")
+
+    private const val B64_STD = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    private const val B64_URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
     val CATEGORY_ORDER = listOf(
         "Destaques",
@@ -191,5 +207,102 @@ internal object TVACaboParser {
         val src = DIRECT_SRC_REGEX.find(html)?.groupValues?.get(1)?.replace("\\/", "/")?.trim()
         if (!src.isNullOrBlank()) return src
         return M3U8_REGEX.find(html)?.value?.replace("\\/", "/")?.trim()
+    }
+
+    internal fun decodeBase64Bytes(input: String): ByteArray? {
+        val clean = input.trim().replace("-", "+").replace("_", "/").filter { !it.isWhitespace() }
+        if (clean.isEmpty()) return null
+        val out = ArrayList<Byte>((clean.length * 3) / 4)
+        var buffer = 0
+        var bits = 0
+        for (ch in clean) {
+            if (ch == '=') break
+            val v = B64_STD.indexOf(ch)
+            if (v < 0) return null
+            buffer = (buffer shl 6) or v
+            bits += 6
+            if (bits >= 8) {
+                bits -= 8
+                out.add(((buffer ushr bits) and 0xFF).toByte())
+            }
+        }
+        return out.toByteArray()
+    }
+
+    internal fun encodeBase64UrlNoPad(bytes: ByteArray): String {
+        val sb = StringBuilder((bytes.size * 4 + 2) / 3)
+        var i = 0
+        while (i < bytes.size) {
+            val b0 = bytes[i].toInt() and 0xFF
+            val b1 = if (i + 1 < bytes.size) bytes[i + 1].toInt() and 0xFF else 0
+            val b2 = if (i + 2 < bytes.size) bytes[i + 2].toInt() and 0xFF else 0
+            val rem = bytes.size - i
+            sb.append(B64_URL[(b0 ushr 2) and 0x3F])
+            sb.append(B64_URL[((b0 and 0x03) shl 4) or ((b1 ushr 4) and 0x0F)])
+            if (rem > 1) sb.append(B64_URL[((b1 and 0x0F) shl 2) or ((b2 ushr 6) and 0x03)])
+            if (rem > 2) sb.append(B64_URL[b2 and 0x3F])
+            i += 3
+        }
+        return sb.toString()
+    }
+
+    fun hexToBase64Url(hex: String): String? {
+        val clean = hex.trim().replace("-", "")
+        if (clean.length != 32 || clean.any { it.digitToIntOrNull(16) == null }) return null
+        val bytes = ByteArray(16)
+        for (i in 0 until 16) {
+            bytes[i] = clean.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        }
+        return encodeBase64UrlNoPad(bytes)
+    }
+
+    fun decodeObfuscatedCharArray(html: String): String? {
+        if (!html.contains("fromCharCode") || !html.contains("atob")) return null
+        val offset = OBF_OFFSET_REGEX.find(html)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+        val arrayBody = OBF_ARRAY_REGEX.find(html)?.groupValues?.get(1) ?: return null
+        val items = OBF_ITEM_REGEX.findAll(arrayBody).map { it.groupValues[1] }.toList()
+        if (items.size < 20) return null
+
+        val sb = StringBuilder(items.size)
+        for (item in items) {
+            val bytes = decodeBase64Bytes(item) ?: return null
+            val digits = String(bytes, Charsets.UTF_8).filter { it.isDigit() }
+            val num = digits.toLongOrNull() ?: return null
+            val chCode = (num - offset).toInt()
+            if (chCode < 0 || chCode > 0xFFFF) return null
+            sb.append(chCode.toChar())
+        }
+        return sb.toString()
+    }
+
+    fun extractClearKeyDash(html: String): ClearKeyStream? {
+        val url = WINDOW_URL_REGEX.find(html)?.groupValues?.get(1)?.replace("\\/", "/")?.trim()
+            ?: return null
+        val rawId = WINDOW_CK_ID_REGEX.find(html)?.groupValues?.get(1)?.trim() ?: return null
+        val rawKey = WINDOW_CK_KEY_REGEX.find(html)?.groupValues?.get(1)?.trim() ?: return null
+        val kid = hexToBase64Url(rawId) ?: rawId
+        val key = hexToBase64Url(rawKey) ?: rawKey
+        if (kid.isBlank() || key.isBlank()) return null
+        return ClearKeyStream(url = url, kidBase64Url = kid, keyBase64Url = key)
+    }
+
+    fun extractDataCStreams(html: String): List<String> {
+        val raw = DATA_C_REGEX.find(html)?.groupValues?.get(1)?.trim() ?: return emptyList()
+        val decodedBytes = decodeBase64Bytes(raw.reversed()) ?: return emptyList()
+        val jsonText = String(decodedBytes, Charsets.UTF_8)
+        val root = try {
+            JSONObject(jsonText)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val arr = root.optJSONArray("u") ?: return emptyList()
+        val urls = mutableListOf<String>()
+        for (i in 0 until arr.length()) {
+            val u = arr.optString(i).replace("\\/", "/").trim()
+            if (u.startsWith("http://") || u.startsWith("https://")) {
+                urls.add(u)
+            }
+        }
+        return urls.distinct()
     }
 }

@@ -62,4 +62,15 @@ class BRFlixVodParserTest {
         assertEquals("Cidade de Deus", items[0].title)
         assertEquals(2002, items[0].year)
     }
+
+    @Test
+    fun isPlayableHlsManifest_rejectsEmptyMegaVodsManifestAndAcceptsRealHls() {
+        val emptyMegaVods = "#EXTM3U\n#EXT-X-TARGETDURATION:10\n"
+        val validPlaylist = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXTINF:10.0,\n/embed/segment/abc\n"
+        val validMaster = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000\nplaylist.m3u8\n"
+
+        assertEquals(false, BRFlixVodParser.isPlayableHlsManifest(emptyMegaVods))
+        assertTrue(BRFlixVodParser.isPlayableHlsManifest(validPlaylist))
+        assertTrue(BRFlixVodParser.isPlayableHlsManifest(validMaster))
+    }
 }

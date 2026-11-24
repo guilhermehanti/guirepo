@@ -39,8 +39,8 @@ class RedeCanais : MainAPI() {
         "$mainUrl/browse-series-videos-%d-date.html" to "Séries",
         "$mainUrl/browse-animes-videos-%d-date.html" to "Animes",
         "$mainUrl/browse-filmes-lancamentos-videos-%d-date.html" to "Filmes Lançamentos",
-        "$mainUrl/browse-filmes-dublado-videos-%d-date.html" to "Filmes Dublados",
-        "$mainUrl/browse-filmes-legendado-videos-%d-date.html" to "Filmes Legendados"
+        "$mainUrl/browse-filmes-videos-%d-date.html" to "Filmes Dublados",
+        "$mainUrl/search.php?keywords=legendado&page=%d" to "Filmes Legendados"
     )
 
     private fun defaultHeaders(referer: String = "$mainUrl/"): Map<String, String> = mapOf(
@@ -64,14 +64,17 @@ class RedeCanais : MainAPI() {
             title
         }
 
+        val imgHeaders = mapOf("Referer" to "$mainUrl/", "User-Agent" to USER_AGENT)
         return if (tvType == TvType.Movie) {
             newMovieSearchResponse(displayTitle, url, TvType.Movie) {
                 this.posterUrl = this@toSearchResponse.posterUrl
+                this.posterHeaders = imgHeaders
                 this.year = this@toSearchResponse.year
             }
         } else {
             newTvSeriesSearchResponse(displayTitle, url, tvType) {
                 this.posterUrl = this@toSearchResponse.posterUrl
+                this.posterHeaders = imgHeaders
                 this.year = this@toSearchResponse.year
             }
         }
@@ -109,15 +112,17 @@ class RedeCanais : MainAPI() {
             ?: doc.title().trim()
         val meta = RedeCanaisParser.parseTitleMetadata(rawTitle)
 
-        val posterUrl = RedeCanaisParser.resolveUrl(
+        val posterUrl = RedeCanaisParser.resolvePosterUrl(
             doc.selectFirst("meta[property=og:image]")?.attr("content"),
             mainUrl
-        ).ifBlank { null }
+        )
 
-        val backdropUrl = RedeCanaisParser.resolveUrl(
+        val backdropUrl = RedeCanaisParser.resolvePosterUrl(
             doc.selectFirst("img.rc-backdrop-image")?.attr("src"),
             mainUrl
-        ).ifBlank { posterUrl }
+        ) ?: posterUrl
+
+        val imgHeaders = mapOf("Referer" to "$mainUrl/", "User-Agent" to USER_AGENT)
 
         val synopsis = RedeCanaisParser.cleanSynopsis(
             doc.selectFirst("meta[name=description]")?.attr("content")
@@ -142,6 +147,7 @@ class RedeCanais : MainAPI() {
 
             newTvSeriesLoadResponse(meta.title, fullUrl, TvType.TvSeries, episodes) {
                 this.posterUrl = posterUrl
+                this.posterHeaders = imgHeaders
                 this.backgroundPosterUrl = backdropUrl
                 this.year = meta.year
                 this.plot = synopsis
@@ -150,6 +156,7 @@ class RedeCanais : MainAPI() {
             val label = meta.audioTag ?: "RedeCanais"
             newMovieLoadResponse(meta.title, fullUrl, TvType.Movie, "$label$LABEL_SEPARATOR$fullUrl") {
                 this.posterUrl = posterUrl
+                this.posterHeaders = imgHeaders
                 this.backgroundPosterUrl = backdropUrl
                 this.year = meta.year
                 this.plot = synopsis

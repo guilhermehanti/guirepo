@@ -13,6 +13,12 @@ internal data class BrFlixChannel(
     val posterUrl: String?
 )
 
+internal data class BrFlixEventTarget(
+    val label: String,
+    val slug: String,
+    val embedUrl: String?
+)
+
 internal data class BrFlixEvent(
     val id: String,
     val slug: String,
@@ -23,7 +29,9 @@ internal data class BrFlixEvent(
     val timeStr: String,
     val sortKey: String,
     val posterUrl: String?,
-    val directEmbedUrl: String?
+    val directEmbedUrl: String?,
+    val embedTargets: List<BrFlixEventTarget> = emptyList(),
+    val playUrl: String? = null
 )
 
 internal data class ResolvedStream(
@@ -64,6 +72,49 @@ internal object BRFlixParser {
             fallback.isNotBlank() -> fallback
             else -> "Canais"
         }
+    }
+
+    fun parseApiChannels(jsonText: String, baseUrl: String): List<BrFlixChannel> {
+        val root = try {
+            JSONObject(jsonText)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val arr = root.optJSONArray("data") ?: return emptyList()
+        val cleanBase = baseUrl.trimEnd('/')
+        val channels = mutableListOf<BrFlixChannel>()
+
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            if (obj.has("is_active") && !obj.optBoolean("is_active", true)) continue
+            val id = obj.optString("id").trim()
+            val name = obj.optString("name").trim()
+            val rawCat = obj.optString("category").trim()
+            if (id.isBlank() || name.isBlank() || isBlocked("$name $id $rawCat")) continue
+
+            val category = normalizeCategory(rawCat, rawCat.ifBlank { "Canais" })
+            val rawLogo = obj.optString("logo_url").ifBlank {
+                obj.optString("logo").ifBlank { obj.optString("image") }
+            }.trim()
+            val poster = when {
+                rawLogo.startsWith("http://") || rawLogo.startsWith("https://") -> rawLogo
+                rawLogo.startsWith("//") -> "https:$rawLogo"
+                rawLogo.startsWith("/") -> "$cleanBase$rawLogo"
+                else -> null
+            }
+
+            channels.add(
+                BrFlixChannel(
+                    id = id,
+                    title = name,
+                    url = "$cleanBase/canal/$id",
+                    category = category,
+                    posterUrl = poster
+                )
+            )
+        }
+
+        return channels.distinctBy { it.id }
     }
 
     fun parseHtmlChannels(doc: Document, baseUrl: String, defaultCategory: String): List<BrFlixChannel> {
@@ -140,14 +191,43 @@ internal object BRFlixParser {
             val poster = obj.optString("poster").ifBlank {
                 obj.optString("image").ifBlank {
                     obj.optString("banner").ifBlank {
-                        obj.optString("competition_logo").ifBlank { obj.optString("time1") }
+                        obj.optString("event_logo").ifBlank {
+                            obj.optString("competition_logo").ifBlank { obj.optString("time1") }
+                        }
                     }
                 }
             }.trim().ifBlank { null }
 
             val directEmbed = obj.optString("directEmbedUrl").ifBlank {
-                obj.optString("embed_url")
+                obj.optString("embed_url").ifBlank {
+                    obj.optJSONObject("sources")?.optString("embedtv").orEmpty()
+                }
             }.trim().ifBlank { null }
+
+            val playUrl = obj.optString("play_url").ifBlank {
+                obj.optString("play_event_direct_url")
+            }.trim().replace("\\/", "/").ifBlank { null }
+
+            val targets = mutableListOf<BrFlixEventTarget>()
+            val embedsArr = obj.optJSONArray("embeds")
+            if (embedsArr != null) {
+                for (j in 0 until embedsArr.length()) {
+                    val em = embedsArr.optJSONObject(j) ?: continue
+                    val emLabel = em.optString("name").ifBlank {
+                        em.optString("provider").ifBlank { "Opção ${j + 1}" }
+                    }.trim()
+                    val emSlug = em.optString("slug").trim()
+                    val emUrl = em.optString("embed_url").ifBlank {
+                        em.optString("embedUrl")
+                    }.trim().replace("\\/", "/").ifBlank { null }
+                    if (emSlug.isNotBlank() || !emUrl.isNullOrBlank()) {
+                        targets.add(BrFlixEventTarget(label = emLabel, slug = emSlug, embedUrl = emUrl))
+                    }
+                }
+            }
+            if (!directEmbed.isNullOrBlank() && targets.none { it.slug.equals(directEmbed, ignoreCase = true) }) {
+                targets.add(0, BrFlixEventTarget(label = directEmbed.uppercase(), slug = directEmbed, embedUrl = playUrl))
+            }
 
             events.add(
                 BrFlixEvent(
@@ -160,7 +240,9 @@ internal object BRFlixParser {
                     timeStr = timeStr,
                     sortKey = sortKey,
                     posterUrl = poster,
-                    directEmbedUrl = directEmbed
+                    directEmbedUrl = directEmbed,
+                    embedTargets = targets,
+                    playUrl = playUrl
                 )
             )
         }

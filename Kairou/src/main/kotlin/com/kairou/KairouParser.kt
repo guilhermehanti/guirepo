@@ -30,6 +30,7 @@ internal data class KairouSource(
     val label: String,
     val url: String,
     val isM3u8: Boolean,
+    val isDash: Boolean = false,
     val height: Int
 )
 
@@ -168,10 +169,15 @@ internal object KairouParser {
                 }.trim()
 
                 val kind = obj.optString("kind").trim().lowercase()
-                val isM3u8 = kind == "hls" ||
-                    fullUrl.contains(".m3u8", ignoreCase = true) ||
-                    fullUrl.contains("playlist.m3u8", ignoreCase = true) ||
-                    fullUrl.contains("nuvio-media", ignoreCase = true)
+                val isDash = kind == "dash" ||
+                    fullUrl.contains(".mpd", ignoreCase = true) ||
+                    fullUrl.contains("manifest.mpd", ignoreCase = true)
+                val isM3u8 = !isDash && (
+                    kind == "hls" ||
+                        fullUrl.contains(".m3u8", ignoreCase = true) ||
+                        fullUrl.contains("playlist.m3u8", ignoreCase = true) ||
+                        fullUrl.contains("nuvio-media", ignoreCase = true)
+                    )
 
                 val height = obj.optInt("height", 0).takeIf { it > 0 } ?: inferHeight(
                     obj.optString("resolution").ifBlank { label }
@@ -182,6 +188,7 @@ internal object KairouParser {
                         label = label,
                         url = fullUrl,
                         isM3u8 = isM3u8,
+                        isDash = isDash,
                         height = height
                     )
                 )
