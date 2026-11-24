@@ -43,6 +43,26 @@
         "name": "AniTubeDesenhos"
     },
     {
+        "iconUrl": "https://brflix.online/favicon.svg",
+        "fileHash": "sha256-d069df33bb3cee6cf671c6401f167fb2cb70c86416862db99da1550bc9193ff9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 33124,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 1,
+        "internalName": "BRFlixTV",
+        "description": "Agenda Esportiva (Ao Vivo e Em Breve) e Canais de TV Ao Vivo em HD no BRFlix TV",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlixTV.cs3",
+        "name": "BRFlixTV"
+    },
+    {
         "iconUrl": "https://cineagora.club/templates/cineagora/images/touch-icon-180x180.png",
         "fileHash": "sha256-4deba29f76b076d35753f1a199fe0fa4e964d2950106921b8c755c62b3d759b2",
         "apiVersion": 1,
@@ -251,6 +271,26 @@
         "description": "Filmes e S\u00e9ries Online em HD no TopFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/TopFlix.cs3",
         "name": "TopFlix"
+    },
+    {
+        "iconUrl": "https://tvacabo.top/favicon.png",
+        "fileHash": "sha256-a071fd8687fa344892651745639c5dca19ae2502c4eb00516bc6c64591b3282f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 29899,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 1,
+        "internalName": "TVACabo",
+        "description": "Agenda Esportiva (Jogos do Dia) e +200 Canais de TV Ao Vivo em HD no TV a Cabo",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/TVACabo.cs3",
+        "name": "TVACabo"
     },
     {
         "iconUrl": "https://www.ultracinetv.lat/favicon.ico",
