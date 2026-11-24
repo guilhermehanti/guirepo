@@ -50,7 +50,7 @@ internal object BRFlixParser {
     private val BLOCKED_KEYWORDS = listOf(
         "sexy hot", "sexyhot", "playboy", "venus", "sextreme", "privê", "prive", "adulto", "+18", "xxx"
     )
-    private val TIME_REGEX = Regex("""\b(\d{2}:\d{2})\b""")
+    private val TIME_REGEX = Regex("""(?:T|\s|^)(\d{2}:\d{2})""")
     private val DATE_ISO_REGEX = Regex("""(\d{4})-(\d{2})-(\d{2})""")
     private val CONST_SRC_REGEX = Regex("""(?:const|var|let)\s+(?:src|SRC)\s*=\s*["'](https?://[^"']+)["']""")
     private val M3U8_REGEX = Regex("""https?://[^\s"'<>\\]+\.m3u8(?:\?[^\s"'<>\\]*)?""", RegexOption.IGNORE_CASE)
@@ -272,6 +272,11 @@ internal object BRFlixParser {
         }
     }
 
+    fun isDisguisedTxtStream(url: String): Boolean {
+        val lower = url.lowercase()
+        return lower.endsWith(".txt") || lower.contains("error.txt") || lower.contains("cloudfront-net.lat")
+    }
+
     fun parseResolveJson(jsonText: String, baseUrl: String): BrFlixResolveResult {
         val root = try {
             JSONObject(jsonText)
@@ -285,7 +290,7 @@ internal object BRFlixParser {
         fun addStream(raw: String, label: String) {
             val unwrapped = unwrapStreamProxyUrl(raw, baseUrl)
             if (unwrapped.isBlank() || !seenUrls.add(unwrapped)) return
-            val ref = if (unwrapped.contains("cloudfront-net.lat") || unwrapped.endsWith(".txt")) {
+            val ref = if (isDisguisedTxtStream(unwrapped)) {
                 "https://w1.ebtv.lat/"
             } else {
                 "${baseUrl.trimEnd('/')}/"
@@ -310,6 +315,10 @@ internal object BRFlixParser {
             addStream(hlsUrl, root.optString("hlsProvider").ifBlank { "BRFlix HD" })
         }
 
+        // Prefer real .m3u8 streams (FHD / HD) over disguised error.txt/cloudfront-net.lat streams that fail in ExoPlayer
+        val standardStreams = streams.filterNot { isDisguisedTxtStream(it.url) }
+        val finalStreams = if (standardStreams.isNotEmpty()) standardStreams else streams
+
         val fallbacks = mutableListOf<Pair<String, String>>()
         val fbArr = root.optJSONArray("fallbackEmbeds")
         if (fbArr != null) {
@@ -323,7 +332,7 @@ internal object BRFlixParser {
             }
         }
 
-        return BrFlixResolveResult(directStreams = streams, fallbackEmbeds = fallbacks)
+        return BrFlixResolveResult(directStreams = finalStreams, fallbackEmbeds = fallbacks)
     }
 
     fun extractStreamFromEmbedHtml(html: String): String? {

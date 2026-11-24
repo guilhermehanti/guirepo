@@ -163,8 +163,16 @@ internal object BRFlixVodParser {
             )
         }
 
-        // Prioritize SpeedNET first (verified reliable HLS), keep original order for others
-        return servers.sortedBy { if (it.label.contains("speednet", ignoreCase = true)) 0 else 1 }
+        // Prioritize reliable direct/VOD servers first (SpeedNET, UniTV, Manual), keep others after
+        return servers.sortedBy {
+            val lbl = it.label.lowercase()
+            when {
+                lbl.contains("speednet") -> 0
+                lbl.contains("unitv") -> 1
+                lbl.contains("manual") -> 2
+                else -> 3
+            }
+        }
     }
 
     fun parseClickhostInit(jsonText: String, embedOrigin: String): ClickhostInitResult? {
@@ -181,18 +189,46 @@ internal object BRFlixVodParser {
         return ClickhostInitResult(url = fullUrl, isHls = isHls)
     }
 
+    enum class ProbeVerdict {
+        HLS,
+        VIDEO,
+        REJECT
+    }
+
+    fun classifyStreamHead(
+        statusCode: Int,
+        contentType: String,
+        contentLength: Long?,
+        initIsHls: Boolean,
+        url: String
+    ): ProbeVerdict {
+        if (statusCode == 405 || statusCode == 501) {
+            return if (initIsHls || url.contains(".m3u8", ignoreCase = true)) ProbeVerdict.HLS else ProbeVerdict.VIDEO
+        }
+        if (statusCode !in 200..299) return ProbeVerdict.REJECT
+
+        val ct = contentType.lowercase()
+        if (ct.contains("text/html") || ct.contains("application/json")) return ProbeVerdict.REJECT
+
+        if (ct.startsWith("video/") || ct.contains("octet-stream") || ct.contains("matroska")) {
+            return ProbeVerdict.VIDEO
+        }
+
+        val isHls = initIsHls || ct.contains("mpegurl") || url.contains(".m3u8", ignoreCase = true)
+        if (isHls) {
+            // Reject empty/stub HLS playlists such as MegaVODS's 33-byte "#EXTM3U\n#EXT-X-TARGETDURATION:10\n"
+            if (contentLength != null && contentLength < 64L) return ProbeVerdict.REJECT
+            return ProbeVerdict.HLS
+        }
+
+        return ProbeVerdict.VIDEO
+    }
+
     fun isPlayableHlsManifest(manifestText: String): Boolean {
         val trimmed = manifestText.trim()
         if (!trimmed.startsWith("#EXTM3U", ignoreCase = true)) return false
         return trimmed.contains("#EXTINF:", ignoreCase = true) ||
             trimmed.contains("#EXT-X-STREAM-INF", ignoreCase = true) ||
             trimmed.contains("#EXT-X-MEDIA:", ignoreCase = true)
-    }
-
-    fun looksLikeHtmlError(contentType: String, bodyStart: String): Boolean {
-        if (contentType.contains("text/html", ignoreCase = true)) return true
-        val trimmed = bodyStart.trimStart()
-        return trimmed.startsWith("<!DOCTYPE", ignoreCase = true) ||
-            trimmed.startsWith("<html", ignoreCase = true)
     }
 }

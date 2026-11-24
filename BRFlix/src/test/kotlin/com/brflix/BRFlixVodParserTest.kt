@@ -73,4 +73,28 @@ class BRFlixVodParserTest {
         assertTrue(BRFlixVodParser.isPlayableHlsManifest(validPlaylist))
         assertTrue(BRFlixVodParser.isPlayableHlsManifest(validMaster))
     }
+
+    @Test
+    fun classifyStreamHead_acceptsLargeMp4MkvAndRealHlsAndRejectsStubHlsAnd502() {
+        assertEquals(
+            BRFlixVodParser.ProbeVerdict.VIDEO,
+            BRFlixVodParser.classifyStreamHead(200, "video/mp4", 3_945_430_301L, false, "https://embed-api.clickhost.xyz/embed/stream/1")
+        )
+        assertEquals(
+            BRFlixVodParser.ProbeVerdict.VIDEO,
+            BRFlixVodParser.classifyStreamHead(200, "video/x-matroska; charset=utf-8", 5_342_536_626L, false, "https://embed-api.clickhost.xyz/embed/stream/2")
+        )
+        assertEquals(
+            BRFlixVodParser.ProbeVerdict.HLS,
+            BRFlixVodParser.classifyStreamHead(200, "application/vnd.apple.mpegurl", null, false, "https://embed-api.clickhost.xyz/embed/stream/3")
+        )
+        assertEquals(
+            BRFlixVodParser.ProbeVerdict.REJECT,
+            BRFlixVodParser.classifyStreamHead(200, "application/vnd.apple.mpegurl", 33L, false, "https://embed-api.clickhost.xyz/embed/stream/4")
+        )
+        assertEquals(
+            BRFlixVodParser.ProbeVerdict.REJECT,
+            BRFlixVodParser.classifyStreamHead(502, "text/html; charset=UTF-8", 6476L, false, "https://embed-api.clickhost.xyz/embed/stream/5")
+        )
+    }
 }

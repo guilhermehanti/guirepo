@@ -123,8 +123,48 @@ class BRFlixParserTest {
 
         val events = BRFlixParser.parseAgendaEvents(json)
         assertEquals(1, events.size)
+        assertEquals("15:15", events[0].timeStr)
         assertEquals(1, events[0].embedTargets.size)
         assertEquals("espn4", events[0].embedTargets[0].slug)
         assertEquals("ESPN 4", events[0].embedTargets[0].label)
+    }
+
+    @Test
+    fun parseAgendaEvents_extractsIsoTimeCorrectlyWithoutMatchingSeconds() {
+        val json = """
+            {
+              "ok": true,
+              "data": [
+                {"id":"e/g1","slug":"g1","title":"Wolves x Derby","status":"live","start_time":"2026-11-24T17:00:00-03:00"},
+                {"id":"e/g2","slug":"g2","title":"Valencia x Panathinaikos","status":"upcoming","start_time":"2026-11-24T16:30:00-03:00"}
+              ]
+            }
+        """.trimIndent()
+
+        val events = BRFlixParser.parseAgendaEvents(json)
+        assertEquals(2, events.size)
+        assertEquals("17:00", events[0].timeStr)
+        assertEquals("16:30", events[1].timeStr)
+    }
+
+    @Test
+    fun parseResolveJson_prefersRealM3u8OverDisguisedErrorTxt() {
+        val json = """
+            {
+              "ok": true,
+              "hlsUrl": "/api/stream-proxy?url=https%3A%2F%2Fe8d009afe4d01e7c84830c60fbfe5ec6.sv-nl-02-cloudfront-net.lat%2Fstream%2Fabc%2Ferror%2Etxt",
+              "directStreams": [
+                {"label":"Sinal 1 (HLS)","src":"/api/stream-proxy?url=https%3A%2F%2Fe8d009afe4d01e7c84830c60fbfe5ec6.sv-nl-02-cloudfront-net.lat%2Fstream%2Fabc%2Ferror.txt"},
+                {"label":"Sinal 1 (1080p FHD)","src":"/api/stream-proxy?url=http%3A%2F%2Frfc-infinite.top%2Flive%2F1%2F2%2F318.m3u8"},
+                {"label":"Sinal 3 (HD Reserva)","src":"/api/stream-proxy?url=http%3A%2F%2Fapontaaimeupatrao.lat%3A80%2Flive%2F1%2F2%2F231470.m3u8"}
+              ]
+            }
+        """.trimIndent()
+
+        val resolved = BRFlixParser.parseResolveJson(json, "https://brflix.online")
+        assertEquals(2, resolved.directStreams.size)
+        assertEquals("Sinal 1 (1080p FHD)", resolved.directStreams[0].label)
+        assertEquals("http://rfc-infinite.top/live/1/2/318.m3u8", resolved.directStreams[0].url)
+        assertEquals("Sinal 3 (HD Reserva)", resolved.directStreams[1].label)
     }
 }

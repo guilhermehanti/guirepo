@@ -407,6 +407,12 @@ class BRFlixTV : MainAPI() {
                 return
             }
         }
+        val lowerLabel = label.lowercase()
+        val inferredQuality = when {
+            lowerLabel.contains("1080") || lowerLabel.contains("fhd") -> Qualities.P1080.value
+            lowerLabel.contains("720") || lowerLabel.contains("hd") -> Qualities.P720.value
+            else -> Qualities.P1080.value
+        }
         callback(
             newExtractorLink(
                 source = name,
@@ -415,7 +421,7 @@ class BRFlixTV : MainAPI() {
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = referer
-                this.quality = Qualities.P1080.value
+                this.quality = inferredQuality
                 this.headers = headers
             }
         )
