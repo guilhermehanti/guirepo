@@ -127,6 +127,26 @@
         "name": "FilmeFlix"
     },
     {
+        "iconUrl": "https://noveflix.lol/apple-touch-icon.png",
+        "fileHash": "sha256-2582fdfbff523672518defbcb9401663bcae394b4a6c829c4dfdda06e1e374fb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 21821,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "NoveFlix",
+        "description": "Novelas Brasileiras, Turcas, Mexicanas e Programas completos em HD no NoveFlix",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/NoveFlix.cs3",
+        "name": "NoveFlix"
+    },
+    {
         "iconUrl": "https://www.pobreflixtvfree.net/assets/img/favicon.png",
         "fileHash": "sha256-d2f41e99e6bd11c067d3c1c147f5028f385dacad896e6326e2789b90ac2b8ed2",
         "apiVersion": 1,
