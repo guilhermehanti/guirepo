@@ -192,6 +192,26 @@
         "name": "RedeCanais"
     },
     {
+        "iconUrl": "https://redecanais.ro/templates/echo/img/favicon.ico",
+        "fileHash": "sha256-6c842a6a45b582237c0e684ccaed14ccafb7cead0e0e5e05057a63ba5cc7109e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 17919,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 1,
+        "internalName": "RedeCanaisTV",
+        "description": "Canais de TV Ao Vivo em HD (Esportes, Filmes, S\u00e9ries, Infantis, Not\u00edcias e TV Aberta) no RedeCanais",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/RedeCanaisTV.cs3",
+        "name": "RedeCanaisTV"
+    },
+    {
         "iconUrl": "https://www.image2url.com/r2/default/images/1776423716151-20e5aa74-a764-4d60-8575-0851d8ab37df.png",
         "fileHash": "sha256-6d8a34cfa4d190ddccb97b4cd95b5f161dbbcfb8d638118270af7aa2b31315a9",
         "apiVersion": 1,
