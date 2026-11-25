@@ -44,10 +44,10 @@
     },
     {
         "iconUrl": "https://brflix.lat/favicon.png?v=2.3.2",
-        "fileHash": "sha256-6f8c579333d66d78ab4615bf342c4d373bb6e19f87656a5c5fe31e1a5b6df8f2",
+        "fileHash": "sha256-4620b5de550b013fefefb3cffe71791e0ad2e84008fcaaaa30145e7ca225a248",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 45114,
+        "fileSize": 117487,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -58,7 +58,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 5,
+        "version": 6,
         "internalName": "BRFlix",
         "description": "Filmes, S\u00e9ries e Animes Dublados e Legendados em HD no BRFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlix.cs3",
