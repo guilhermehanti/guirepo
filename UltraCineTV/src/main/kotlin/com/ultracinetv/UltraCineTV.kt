@@ -13,17 +13,25 @@ import java.net.URLEncoder
 class UltraCineTVPlugin : Plugin() {
     private var http: AbyssHttp? = null
     private var proxy: AbyssProxy? = null
+    private var browserStreams: UltraCineBrowserStream? = null
     override fun load(context: Context) {
         val upstream = AbyssHttp()
         val server = AbyssProxy(upstream::fetch)
-        http = upstream; proxy = server
-        val api = UltraCineTV(server)
+        val streams = UltraCineBrowserStream()
+        http = upstream; proxy = server; browserStreams = streams
+        val api = UltraCineTV(server, streams)
         registerMainAPI(api)
     }
-    override fun beforeUnload() { proxy?.close(); http?.close(); proxy = null; http = null }
+    override fun beforeUnload() {
+        browserStreams?.close(); browserStreams = null
+        proxy?.close(); http?.close(); proxy = null; http = null
+    }
 }
 
-class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI() {
+class UltraCineTV internal constructor(
+    private val proxy: AbyssProxy,
+    private val browserStreams: UltraCineBrowserStream
+) : MainAPI() {
     override var mainUrl = "https://www.ultracinetv.lat"
     override var name = "UltraCineTV"
     override var lang = "pt-br"
@@ -108,12 +116,13 @@ class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI(
 
         val results = targets.amap { (targetUrl, audioTag) ->
             var localFound = false
+            val deferredBrowserLinks = mutableListOf<ExtractorLink>()
             val doc = try {
                 app.get(targetUrl, referer = mainUrl).document
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                return@amap false
+                return@amap false to emptyList<ExtractorLink>()
             }
 
             var btnIdx = 0
@@ -139,6 +148,37 @@ class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI(
                         host.contains("byse") -> ByseResolver().resolve(source, targetUrl, label, subtitleCallback, callback)
                         (host == "abyssplayer.com" || host.endsWith(".abyssplayer.com")) && !isCasting ->
                             AbyssResolver(proxy).resolve(source, targetUrl, label, callback)
+                        (host.contains("vidsrc.") || host.contains("stellarconductornexus.com") ||
+                            host.contains("superflixapi.") || host.contains("warezcdn.")) && !isCasting -> {
+                            val subbed = audioTag.contains("leg", ignoreCase = true) ||
+                                rawBtnText.contains("leg", ignoreCase = true) ||
+                                host.contains("vidsrc.") || host.contains("stellarconductornexus.com")
+                            val providerName = when {
+                                host.contains("vidsrc.") || host.contains("stellarconductornexus.com") -> "VidSrc"
+                                host.contains("warezcdn.") -> "WarezCDN"
+                                else -> "SuperFlix"
+                            }
+                            val displayLabel = when {
+                                label.contains(providerName, ignoreCase = true) -> label
+                                subbed && !label.contains("leg", ignoreCase = true) -> "$providerName • Legendado"
+                                else -> "$providerName • $label"
+                            }
+                            val baseRef = runCatching {
+                                val u = URI(targetUrl)
+                                "${u.scheme}://${u.authority}/"
+                            }.getOrDefault("$mainUrl/")
+                            deferredBrowserLinks.add(
+                                newExtractorLink(
+                                    source = name,
+                                    name = displayLabel,
+                                    url = browserStreams.register(providerName, source, subbed, baseRef),
+                                    type = ExtractorLinkType.M3U8
+                                ) {
+                                    this.quality = Qualities.Unknown.value
+                                }
+                            )
+                            true
+                        }
                         else -> false
                     }
                     localFound = resolved || localFound
@@ -147,10 +187,14 @@ class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI(
                     android.util.Log.w("UltraCineTV", "$host: ${e.javaClass.simpleName}: ${e.message?.replace(Regex("https?://[^\\s]+"), "[url]")?.take(160)}")
                 }
             }
-            localFound
+            localFound to deferredBrowserLinks
         }
 
-        if (results.none { it }) {
+        // Emit all interactive WebView links LAST (after every direct Byse/Abyss source has already been emitted).
+        val allDeferred = results.flatMap { it.second }
+        allDeferred.forEach(callback)
+
+        if (results.none { it.first } && allDeferred.isEmpty()) {
             throw ErrorLoadingException("Abyss/Byse não liberaram vídeo; o servidor pode estar indisponível ou ter mudado")
         }
         return true

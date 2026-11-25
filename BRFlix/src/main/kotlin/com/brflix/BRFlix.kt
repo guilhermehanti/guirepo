@@ -273,22 +273,6 @@ class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStrea
         val rawImdb = if (type == "movie") parts.getOrNull(2).orEmpty() else parts.getOrNull(4).orEmpty()
         val imdbId = resolveImdbId(type, idStr, rawImdb)
 
-        if (!isCasting) {
-            val contentId = imdbId.takeIf { it.startsWith("tt") } ?: idStr
-            listOf("SuperFlix" to "https://superflixapi.baby", "WarezCDN" to "https://warezcdn.sbs").forEach { (provider, origin) ->
-                val path = if (type == "movie") "/filme/$contentId" else {
-                    val seriesId = if (provider == "SuperFlix") idStr else contentId
-                    "/serie/$seriesId/$season/$episode"
-                }
-                listOf(false, true).forEach { subbed ->
-                    callback(newExtractorLink(name, "$provider • ${if (subbed) "Legendado" else "Dublado"}",
-                        browserStreams.register(provider, "$origin$path", subbed), ExtractorLinkType.M3U8) {
-                        quality = Qualities.Unknown.value
-                    })
-                }
-            }
-        }
-
         val emittedUrls = ConcurrentHashMap.newKeySet<String>()
         val emittedSubs = ConcurrentHashMap.newKeySet<String>()
 
@@ -496,6 +480,23 @@ class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStrea
                     } catch (_: Exception) {
                         // Ignore clickhost errors
                     }
+                }
+            }
+        }
+
+        // Emit interactive WebView sources LAST so CloudStream always prefers direct (non-WebView) servers first.
+        if (!isCasting) {
+            val contentId = imdbId.takeIf { it.startsWith("tt") } ?: idStr
+            listOf("SuperFlix" to "https://superflixapi.baby", "WarezCDN" to "https://warezcdn.sbs").forEach { (provider, origin) ->
+                val path = if (type == "movie") "/filme/$contentId" else {
+                    val seriesId = if (provider == "SuperFlix") idStr else contentId
+                    "/serie/$seriesId/$season/$episode"
+                }
+                listOf(false, true).forEach { subbed ->
+                    callback(newExtractorLink(name, "$provider • ${if (subbed) "Legendado" else "Dublado"}",
+                        browserStreams.register(provider, "$origin$path", subbed), ExtractorLinkType.M3U8) {
+                        quality = Qualities.Unknown.value
+                    })
                 }
             }
         }

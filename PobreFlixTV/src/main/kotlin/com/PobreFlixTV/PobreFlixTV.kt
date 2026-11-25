@@ -230,6 +230,7 @@ class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrow
                     type = if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ) {
                     this.referer = "$VAIQUECOL_URL/"
+                    this.quality = Qualities.P1080.value
                     this.headers = mapOf(
                         "Referer" to "$VAIQUECOL_URL/",
                         "Origin" to VAIQUECOL_URL,
@@ -286,7 +287,12 @@ class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrow
                 .distinct()
                 .toList()
             for (vid in dataIds) {
-                if (vid.contains("vaiquecol", true) || vid.contains("superflix", true) || vid.contains("warez", true)) {
+                if (vid.contains("vaiquecol", true) ||
+                    vid.contains("superflix", true) ||
+                    vid.contains("warez", true) ||
+                    vid.contains("vidsrc", true) ||
+                    vid.contains("streambetter", true)
+                ) {
                     decodePlenofluPlayer(vid, plenofluUrl, ajaxHeaders)?.let { urls.add(it) }
                 }
             }
@@ -396,6 +402,38 @@ class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrow
                     )
                     found = true
                 }
+            }
+
+            val streamBetterUrl = embeds.firstOrNull { it.contains("streambetter.", ignoreCase = true) }
+            if (!streamBetterUrl.isNullOrBlank()) {
+                callback(
+                    newExtractorLink(
+                        source = name,
+                        name = "StreamBetter • Dublado",
+                        url = browserStreams.register("StreamBetter", streamBetterUrl, subbed = false, baseReferer = "$PLENOFLU_URL/"),
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.quality = Qualities.Unknown.value
+                    }
+                )
+                found = true
+            }
+
+            val vidsrcUrl = embeds.firstOrNull {
+                it.contains("vidsrc.", ignoreCase = true) || it.contains("stellarconductornexus.com", ignoreCase = true)
+            }
+            if (!vidsrcUrl.isNullOrBlank()) {
+                callback(
+                    newExtractorLink(
+                        source = name,
+                        name = "VidSrc • Legendado",
+                        url = browserStreams.register("VidSrc", vidsrcUrl, subbed = true, baseReferer = "$PLENOFLU_URL/"),
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.quality = Qualities.Unknown.value
+                    }
+                )
+                found = true
             }
         }
 

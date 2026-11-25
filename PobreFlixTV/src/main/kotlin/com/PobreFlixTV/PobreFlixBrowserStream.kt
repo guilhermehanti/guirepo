@@ -135,9 +135,14 @@ internal class PobreFlixBrowserStream : Closeable {
         }
     }
 
-    @Synchronized fun register(provider: String, embed: String, subbed: Boolean): String {
+    @Synchronized fun register(
+        provider: String,
+        embed: String,
+        subbed: Boolean,
+        baseReferer: String = "https://www.pobreflixtvfilmes.com/"
+    ): String {
         check(!closed)
-        val key = "$embed|$subbed"
+        val key = "$embed|$subbed|$baseReferer"
         val cutoff = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(20)
         sessions.values.filter { it.touched < cutoff }.forEach { sessions.remove(it.id); it.close() }
         sessions.values.firstOrNull { it.key == key }?.let { return local(it.id, "master") }
@@ -145,7 +150,7 @@ internal class PobreFlixBrowserStream : Closeable {
             val oldest = sessions.values.minByOrNull { it.touched } ?: break
             sessions.remove(oldest.id); oldest.close()
         }
-        val session = Session(provider, embed, subbed, key)
+        val session = Session(provider, embed, subbed, key, baseReferer)
         sessions[session.id] = session
         return local(session.id, "master")
     }
@@ -169,7 +174,13 @@ internal class PobreFlixBrowserStream : Closeable {
         val finalUrl: String
     )
 
-    private inner class Session(val provider: String, val embed: String, val subbed: Boolean, val key: String) : Closeable {
+    private inner class Session(
+        val provider: String,
+        val embed: String,
+        val subbed: Boolean,
+        val key: String,
+        val baseReferer: String
+    ) : Closeable {
         val id = UUID.randomUUID().toString()
         @Volatile var touched = System.currentTimeMillis()
         private val master = CompletableDeferred<String>()
@@ -199,6 +210,7 @@ internal class PobreFlixBrowserStream : Closeable {
         private var playButton: Button? = null
         private var statusText: TextView? = null
         private var remotePlayReady = false
+        @Volatile private var nativePlayOrigin: String? = null
 
         @Synchronized fun start() {
             check(!disposed)
@@ -221,6 +233,12 @@ internal class PobreFlixBrowserStream : Closeable {
                     val cdn = "https://xn--80adalaab0boiodbce7addhh.delivery"
                     val videoOrigins = setOf(cdn, VIDSRC_PLAYER)
                     val providerOrigins = setOf(
+                        "https://superflixapi.baby",
+                        "https://superflixapi.boats",
+                        "https://warezcdn.sbs",
+                        "https://streambetter.xyz"
+                    )
+                    val superflixOrigins = setOf(
                         "https://superflixapi.baby",
                         "https://superflixapi.boats",
                         "https://warezcdn.sbs"
@@ -249,15 +267,36 @@ internal class PobreFlixBrowserStream : Closeable {
                             future.complete(result)
                         } catch (e: Exception) { fail(e) }
                     }
-                    // Separate native-player transport listener for /player/native/media-source/ fallback & pause.
+                    // Separate native-player transport listener for /player/native/media-source/ & StreamBetter.
                     WebViewCompat.addWebMessageListener(web, "BRFlixNativeTransport", providerOrigins) { _, message, source, _, reply ->
                         val cleanOrigin = source.toString().trimEnd('/')
                         if (cleanOrigin !in providerOrigins || disposed) return@addWebMessageListener
                         val data = message.data ?: return@addWebMessageListener
                         if (data == "ready") {
                             nativeRelays[cleanOrigin] = reply
+                        } else if (data == "play-ready" || data == "play-unavailable") {
+                            nativeRelays[cleanOrigin] = reply
+                            if (!master.isCompleted) {
+                                nativePlayOrigin = cleanOrigin
+                                remotePlayReady = true
+                                playButton?.apply { visibility = View.VISIBLE; requestFocus() }
+                            }
                         } else try {
                             val obj = JSONObject(data)
+                            val detectedMedia = obj.optString("mediaUrl").trim()
+                            if (detectedMedia.startsWith("https://") || detectedMedia.startsWith("http://")) {
+                                if (!disposed && !master.isCompleted) {
+                                    android.util.Log.i("PobreFlixTV", "NativeTransport captured media: ${detectedMedia.take(120)}")
+                                    captured = detectedMedia
+                                    capturedNativeOrigin = cleanOrigin
+                                    capturedNativeHeaders = mapOf(
+                                        "Referer" to obj.optString("referer").ifBlank { "$cleanOrigin/" },
+                                        "User-Agent" to browserUserAgent
+                                    )
+                                    completeNative()
+                                }
+                                return@addWebMessageListener
+                            }
                             val future = nativePending.remove(obj.optString("id")) ?: return@addWebMessageListener
                             val body = obj.optString("body")
                             require(body.length <= 24 * 1024 * 1024)
@@ -274,32 +313,48 @@ internal class PobreFlixBrowserStream : Closeable {
                     WebViewCompat.addDocumentStartJavaScript(web, TRANSPORT, videoOrigins)
                     WebViewCompat.addDocumentStartJavaScript(web, NATIVE_TRANSPORT, providerOrigins)
                     // Only ordinary language/server controls; verification widgets are left to the user.
-                    WebViewCompat.addDocumentStartJavaScript(web, selectionScript(subbed), providerOrigins)
+                    WebViewCompat.addDocumentStartJavaScript(web, selectionScript(subbed), superflixOrigins)
+                    val allowedMainHost = runCatching { URI(baseReferer).host }.getOrNull() ?: "www.pobreflixtvfilmes.com"
+                    val isStreamBetter = provider.equals("StreamBetter", ignoreCase = true)
                     web.webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                             val uri = request.url
                             val uriOrigin = if (uri.scheme == "https" && uri.host != null) "https://${uri.host}" else null
-                            val nativeMedia = uriOrigin != null && uriOrigin in providerOrigins &&
-                                uri.path?.startsWith("/player/native/media-source/") == true
-                            if (nativeMedia) {
+                            val pathStr = uri.path.orEmpty()
+                            val lowerPath = pathStr.lowercase()
+                            val nativeMedia = uriOrigin != null && uriOrigin in superflixOrigins &&
+                                pathStr.startsWith("/player/native/media-source/")
+                            val streamBetterMedia = isStreamBetter && uri.scheme == "https" && uri.host != null &&
+                                !isIgnoredMediaHost(uri.host!!) &&
+                                isStreamBetterMediaPath(lowerPath)
+                            if (nativeMedia || streamBetterMedia) {
                                 // Let our own WebView fallback fetch() pass directly to the network.
                                 if (nativeFetchInFlight.get() > 0) return null
                                 val headersCopy = request.requestHeaders?.toMap().orEmpty()
+                                val originForRelay = if (uriOrigin in providerOrigins) uriOrigin else "https://streambetter.xyz"
                                 ui.post {
                                     if (!disposed && !master.isCompleted) {
                                         captured = uri.toString()
-                                        capturedNativeOrigin = uriOrigin
+                                        capturedNativeOrigin = originForRelay
                                         capturedNativeHeaders = headersCopy
                                         completeNative()
                                     }
                                 }
-                                // Prevent the hidden WebView's <video> from streaming the same MP4 concurrently.
-                                return WebResourceResponse("video/mp4", null, ByteArrayInputStream(ByteArray(0)))
+                                // Prevent the hidden WebView's <video> from streaming the same media concurrently.
+                                val emptyMime = if (lowerPath.endsWith(".m3u8") || lowerPath.endsWith("/master.txt")) {
+                                    "application/vnd.apple.mpegurl"
+                                } else {
+                                    "video/mp4"
+                                }
+                                return WebResourceResponse(emptyMime, null, ByteArrayInputStream(ByteArray(0)))
                             }
-                            val cdnHls = uri.host == "xn--80adalaab0boiodbce7addhh.delivery" && uri.path?.endsWith("/master.txt") == true
-                            val vidsrcPlaylist = uri.path?.let {
-                                it.endsWith(".m3u8") || Regex("/pl/[A-Za-z0-9_-]{40,160}/?").matches(it)
-                            } == true
+                            if (isStreamBetter && uri.scheme == "https" && !master.isCompleted &&
+                                uri.host != null && !isIgnoredMediaHost(uri.host!!) && !isStaticAssetPath(lowerPath)
+                            ) {
+                                android.util.Log.i("PobreFlixTV", "SB req: ${uri.host}${pathStr.take(100)}")
+                            }
+                            val cdnHls = uri.host == "xn--80adalaab0boiodbce7addhh.delivery" && pathStr.endsWith("/master.txt")
+                            val vidsrcPlaylist = (lowerPath.endsWith(".m3u8") || Regex("/pl/[A-Za-z0-9_-]{40,160}/?").matches(pathStr))
                             val vidsrcHls = vidsrcPlaylist && request.requestHeaders.entries.any {
                                 it.key.equals("Referer", true) && it.value.startsWith("$VIDSRC_PLAYER/")
                             }
@@ -309,7 +364,7 @@ internal class PobreFlixBrowserStream : Closeable {
                             return null
                         }
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                            request.isForMainFrame && request.url.host != "www.pobreflixtvfilmes.com"
+                            request.isForMainFrame && request.url.host != allowedMainHost
                     }
                     val layout = LinearLayout(activity).apply {
                         orientation = LinearLayout.VERTICAL
@@ -338,7 +393,7 @@ internal class PobreFlixBrowserStream : Closeable {
                         d.show()
                         d.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     }
-                    web.loadDataWithBaseURL("https://www.pobreflixtvfilmes.com/",
+                    web.loadDataWithBaseURL(baseReferer,
                         "<!doctype html><meta name=viewport content=width=device-width,initial-scale=1>" +
                             "<style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#111}</style>" +
                             "<iframe src=\"$embed\" allow=\"autoplay *; encrypted-media *; picture-in-picture *; fullscreen *\" allowfullscreen></iframe>",
@@ -372,6 +427,10 @@ internal class PobreFlixBrowserStream : Closeable {
 
         private fun requestPlay() {
             if (!disposed && !master.isCompleted) {
+                val nOrigin = nativePlayOrigin
+                if (nOrigin != null) {
+                    nativeRelays[nOrigin]?.postMessage("{\"action\":\"play\"}")
+                }
                 relay?.postMessage("{\"action\":\"play\"}")
                 remotePlayReady = false
                 playButton?.visibility = View.GONE
@@ -909,6 +968,25 @@ internal class PobreFlixBrowserStream : Closeable {
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
+        private fun isIgnoredMediaHost(host: String): Boolean {
+            val h = host.lowercase()
+            return h.contains("cloudflare") || h.contains("google") || h.contains("gstatic") ||
+                h.contains("servetraff") || h.contains("doubleclick") || h.contains("analytics") ||
+                h.contains("facebook") || h.contains("twitter") || h.contains("fonts.")
+        }
+
+        private fun isStaticAssetPath(lowerPath: String): Boolean =
+            lowerPath.endsWith(".js") || lowerPath.endsWith(".css") || lowerPath.endsWith(".png") ||
+                lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg") || lowerPath.endsWith(".webp") ||
+                lowerPath.endsWith(".svg") || lowerPath.endsWith(".woff") || lowerPath.endsWith(".woff2") ||
+                lowerPath.endsWith(".ico") || lowerPath.endsWith(".gif")
+
+        private fun isStreamBetterMediaPath(lowerPath: String): Boolean {
+            if (isStaticAssetPath(lowerPath) || lowerPath.endsWith(".vtt") || lowerPath.endsWith(".srt")) return false
+            return lowerPath.endsWith(".m3u8") || lowerPath.endsWith("/master.txt") || lowerPath.endsWith(".mp4") ||
+                lowerPath.contains("/media-source/") || lowerPath.contains("/hls/") || lowerPath.contains("/manifest")
+        }
+
         private fun parseTotalFromContentRange(header: String?): Long? {
             if (header.isNullOrBlank()) return null
             return Regex("bytes\\s+\\d+-\\d+/(\\d+)").find(header)?.groupValues?.get(1)?.toLongOrNull()
@@ -975,6 +1053,14 @@ internal class PobreFlixBrowserStream : Closeable {
               let m;
               try {
                 m=JSON.parse(e.data);
+                if(m.action==='play'){
+                  const btn=document.querySelector('button[aria-label*="play" i],button[title*="play" i],[class*="play-btn"],[class*="playBtn"],[class*="big-play"],.plyr__control--overlaid,.vjs-big-play-button');
+                  if(btn&&btn.offsetParent!==null){btn.click();}
+                  const video=document.querySelector('video');
+                  if(video){video.muted=true;try{await video.play();}catch(_){}}
+                  if(!btn&&!video)BRFlixNativeTransport.postMessage('play-unavailable');
+                  return;
+                }
                 if(m.action==='stop'){
                   const stop=()=>{
                     try{if(typeof window.videojs==='function')Object.values(window.videojs.getPlayers()).forEach(p=>{if(p)p.dispose();});}catch(_){}
@@ -990,11 +1076,80 @@ internal class PobreFlixBrowserStream : Closeable {
                 let s='';for(let i=0;i<a.length;i+=8192)s+=String.fromCharCode(...a.subarray(i,i+8192));
                 BRFlixNativeTransport.postMessage(JSON.stringify({id:m.id,status:r.status,url:r.url||u.href,body:btoa(s),type:r.headers.get('content-type'),range:r.headers.get('content-range'),retryAfter:r.headers.get('retry-after')}));
               } catch(x) {
-                if(m&&m.id)BRFlixNativeTransport.postMessage(JSON.stringify({id:m.id,status:0,body:''}));
+                if(m&&m.action==='play')BRFlixNativeTransport.postMessage('play-unavailable');
+                else if(m&&m.id)BRFlixNativeTransport.postMessage(JSON.stringify({id:m.id,status:0,body:''}));
               }
             };
             if(location.pathname.startsWith('/player/native/media/')){
               BRFlixNativeTransport.postMessage('ready');
+            }else if(location.origin==='https://streambetter.xyz'){
+              BRFlixNativeTransport.postMessage('ready');
+              let sbSent=false;
+              const emitMedia=u=>{
+                if(sbSent||!u||typeof u!=='string')return;
+                if(u.startsWith('/'))u=location.origin+u;
+                if(!u.startsWith('http://')&&!u.startsWith('https://'))return;
+                sbSent=true;
+                BRFlixNativeTransport.postMessage(JSON.stringify({mediaUrl:u,referer:location.href}));
+              };
+              const origFetch=window.fetch;
+              if(typeof origFetch==='function'){
+                window.fetch=async function(...args){
+                  const resp=await origFetch.apply(this,args);
+                  try{
+                    const reqUrl=typeof args[0]==='string'?args[0]:(args[0]&&args[0].url)||resp.url||'';
+                    if(!sbSent&&resp.ok&&(reqUrl.includes('/api/proxy')||reqUrl.includes('/api/r2-url')||reqUrl.includes('.m3u8'))){
+                      const clone=resp.clone();
+                      const txt=await clone.text();
+                      const t=txt.trimStart();
+                      if(t.startsWith('#EXTM3U')){
+                        emitMedia(resp.url||reqUrl);
+                      }else if(reqUrl.includes('/api/r2-url')&&t.startsWith('{')){
+                        const j=JSON.parse(t);
+                        const cand=j.url||j.videoUrl||j.streamUrl||j.src||(j.data&&j.data.url)||'';
+                        if(cand)emitMedia(cand);
+                      }
+                    }
+                  }catch(_){}
+                  return resp;
+                };
+              }
+              const origOpen=XMLHttpRequest.prototype.open;
+              const origSend=XMLHttpRequest.prototype.send;
+              XMLHttpRequest.prototype.open=function(method,url){
+                this.__sbUrl=typeof url==='string'?url:'';
+                return origOpen.apply(this,arguments);
+              };
+              XMLHttpRequest.prototype.send=function(){
+                this.addEventListener('load',function(){
+                  try{
+                    if(sbSent)return;
+                    const u=this.responseURL||this.__sbUrl||'';
+                    if(!u.includes('/api/proxy')&&!u.includes('/api/r2-url')&&!u.includes('.m3u8'))return;
+                    if(this.responseType&&this.responseType!=='text')return;
+                    const t=(this.responseText||'').trimStart();
+                    if(t.startsWith('#EXTM3U'))emitMedia(u);
+                    else if(u.includes('/api/r2-url')&&t.startsWith('{')){
+                      const j=JSON.parse(t);
+                      const cand=j.url||j.videoUrl||j.streamUrl||j.src||(j.data&&j.data.url)||'';
+                      if(cand)emitMedia(cand);
+                    }
+                  }catch(_){}
+                });
+                return origSend.apply(this,arguments);
+              };
+              const checkSbPlayer=()=>{
+                if(sbSent)return;
+                if(document.querySelector('.cf-turnstile'))return;
+                const v=document.querySelector('video');
+                if(v){
+                  const s=v.currentSrc||v.getAttribute('src')||'';
+                  if(s&&(s.startsWith('http://')||s.startsWith('https://'))){emitMedia(s);return;}
+                  BRFlixNativeTransport.postMessage('play-ready');
+                }
+              };
+              const sbTimer=setInterval(()=>{if(sbSent)clearInterval(sbTimer);else checkSbPlayer();},800);
+              setTimeout(()=>clearInterval(sbTimer),85000);
             }
         """.trimIndent()
 
