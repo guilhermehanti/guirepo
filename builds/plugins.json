@@ -65,8 +65,8 @@
         "name": "BRFlix"
     },
     {
-        "iconUrl": "https://brflix.online/brflix-favicon.png",
-        "fileHash": "sha256-ae9ec6f1343fa8b9cdaf98a2702ad8d078b7343e2d8c00f04f0b3440841a15e4",
+        "iconUrl": "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/brflix-tv.png",
+        "fileHash": "sha256-4c71d4f9453cda11b295adeb9f5d15bc16bf50d991c0b4a32847a1e6aeefc02e",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 41730,
@@ -78,7 +78,7 @@
         "tvTypes": [
             "Live"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "BRFlixTV",
         "description": "Agenda Esportiva (Ao Vivo e Em Breve) e Canais de TV Ao Vivo em HD no BRFlix TV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlixTV.cs3",
@@ -256,8 +256,8 @@
         "name": "RedeCanais"
     },
     {
-        "iconUrl": "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/redecanais-tv.png",
-        "fileHash": "sha256-ada7f834f8561174289ee45bf9c58a49d73e421f97ec0297946786eb2655befb",
+        "iconUrl": "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/redecanais-tv.png?v=2",
+        "fileHash": "sha256-a9cf7adedab67e0265586ec725e532327610a8335260e212c3d72fe960cdddf7",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 17919,
@@ -269,7 +269,7 @@
         "tvTypes": [
             "Live"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "RedeCanaisTV",
         "description": "Canais de TV Ao Vivo em HD (Esportes, Filmes, S\u00e9ries, Infantis, Not\u00edcias e TV Aberta) no RedeCanais",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/RedeCanaisTV.cs3",
