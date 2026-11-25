@@ -11,12 +11,16 @@ import java.util.concurrent.ConcurrentHashMap
 
 @CloudstreamPlugin
 class BRFlixPlugin : Plugin() {
+    private var browserStreams: BRFlixBrowserStream? = null
     override fun load(context: Context) {
-        registerMainAPI(BRFlix())
+        val streams = BRFlixBrowserStream()
+        browserStreams = streams
+        registerMainAPI(BRFlix(streams))
     }
+    override fun beforeUnload() { browserStreams?.close(); browserStreams = null }
 }
 
-class BRFlix : MainAPI() {
+class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStream) : MainAPI() {
     override var mainUrl = "https://brflix.lat"
     override var name = "BRFlix"
     override val hasMainPage = true
@@ -267,6 +271,22 @@ class BRFlix : MainAPI() {
         val rawImdb = if (type == "movie") parts.getOrNull(2).orEmpty() else parts.getOrNull(4).orEmpty()
         val imdbId = resolveImdbId(type, idStr, rawImdb)
 
+        if (!isCasting) {
+            val contentId = imdbId.takeIf { it.startsWith("tt") } ?: idStr
+            listOf("SuperFlix" to "https://superflixapi.baby", "WarezCDN" to "https://warezcdn.sbs").forEach { (provider, origin) ->
+                val path = if (type == "movie") "/filme/$contentId" else {
+                    val seriesId = if (provider == "SuperFlix") idStr else contentId
+                    "/serie/$seriesId/$season/$episode"
+                }
+                listOf(false, true).forEach { subbed ->
+                    callback(newExtractorLink(name, "$provider • ${if (subbed) "Legendado" else "Dublado"}",
+                        browserStreams.register(provider, "$origin$path", subbed), ExtractorLinkType.M3U8) {
+                        quality = Qualities.Unknown.value
+                    })
+                }
+            }
+        }
+
         val emittedUrls = ConcurrentHashMap.newKeySet<String>()
         val emittedSubs = ConcurrentHashMap.newKeySet<String>()
 
@@ -467,6 +487,6 @@ class BRFlix : MainAPI() {
             }
         }
 
-        return emittedUrls.isNotEmpty()
+        return emittedUrls.isNotEmpty() || !isCasting
     }
 }
