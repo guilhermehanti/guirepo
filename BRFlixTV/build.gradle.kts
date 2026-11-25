@@ -1,4 +1,4 @@
-version = 4
+version = 5
 
 cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")
@@ -7,7 +7,7 @@ cloudstream {
     authors = listOf("guilhermehanti")
     status = 1
     tvTypes = listOf("Live")
-    iconUrl = "https://brflix.online/brflix-favicon.png"
+    iconUrl = "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/brflix-tv.png"
 }
 
 dependencies {
