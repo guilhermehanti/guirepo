@@ -164,9 +164,19 @@ internal object KairouParser {
                 val fullUrl = resolveUrl(rawUrl, baseUrl)
                 if (fullUrl.isBlank() || !seenUrls.add(fullUrl)) continue
 
-                val label = obj.optString("serverLabel").ifBlank {
+                val provider = obj.optString("provider").trim().lowercase()
+                val rawLabel = obj.optString("serverLabel").ifBlank {
                     obj.optString("title").ifBlank { obj.optString("provider", "Kairou ${i + 1}") }
                 }.trim()
+                val label = if ((provider == "zephyr" || provider == "vortex") &&
+                    !rawLabel.contains("dub", ignoreCase = true) &&
+                    !rawLabel.contains("leg", ignoreCase = true) &&
+                    !rawLabel.contains("original", ignoreCase = true)
+                ) {
+                    "$rawLabel · Legendado (Original)"
+                } else {
+                    rawLabel
+                }
 
                 val kind = obj.optString("kind").trim().lowercase()
                 val isDash = kind == "dash" ||

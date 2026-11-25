@@ -64,10 +64,28 @@ class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI(
         val plot = doc.selectFirst(".description")?.text()
         if (url.contains("/serie/")) {
             val base = URI(panel).let { "${it.scheme}://${it.authority}" }
-            val episodes = UltraCatalog.episodes(app.get(panel, referer = url).document, base).map { ep ->
-                newEpisode(ep.url) {
-                    season = ep.season; episode = ep.number
-                    name = "Episódio ${ep.number ?: ""} (${ep.audio})"
+            val rawEpisodes = UltraCatalog.episodes(app.get(panel, referer = url).document, base)
+            // Group Dublado + Legendado for the same (season, episode) into ONE episode so both appear in the same player
+            val grouped = linkedMapOf<Pair<Int?, Int?>, MutableList<UltraCatalog.Episode>>()
+            for (ep in rawEpisodes) {
+                grouped.getOrPut(ep.season to ep.number) { mutableListOf() }.add(ep)
+            }
+            val episodes = grouped.entries.map { (key, list) ->
+                val (s, n) = key
+                val combinedData = list.distinctBy { it.url }.joinToString("||") { ep ->
+                    val audio = ep.audio.trim()
+                    if (audio.isNotBlank()) "${ep.url}#audio=$audio" else ep.url
+                }
+                val audios = list.map { it.audio.trim() }.filter { it.isNotBlank() }.distinct()
+                val epLabel = if (audios.size == 1) {
+                    "Episódio ${n ?: ""} (${audios.first()})"
+                } else {
+                    "Episódio ${n ?: ""}"
+                }
+                newEpisode(combinedData) {
+                    season = s
+                    episode = n
+                    name = epLabel.trim()
                 }
             }
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) { posterUrl = poster; this.plot = plot }
@@ -77,29 +95,64 @@ class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI(
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit,
                                    callback: (ExtractorLink) -> Unit): Boolean {
-        val doc = app.get(data, referer = mainUrl).document
-        var found = false
-        for (button in doc.select("[data-source]")) {
-            val source = button.attr("data-source")
-            val rawSub = button.attr("data-subtitles").trim()
-            if (rawSub.startsWith("http")) {
-                subtitleCallback(newSubtitleFile("Português", rawSub))
-            }
-            val host = runCatching { URI(source).host }.getOrNull().orEmpty()
-            try {
-                val resolved = when {
-                    host.contains("byse") -> ByseResolver().resolve(source, data, button.text(), subtitleCallback, callback)
-                    (host == "abyssplayer.com" || host.endsWith(".abyssplayer.com")) && !isCasting ->
-                        AbyssResolver(proxy).resolve(source, data, button.text(), callback)
-                    else -> false
-                }
-                found = resolved || found
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                android.util.Log.w("UltraCineTV", "$host: ${e.javaClass.simpleName}: ${e.message?.replace(Regex("https?://[^\\s]+"), "[url]")?.take(160)}")
+        val targets = data.split("||").mapNotNull { raw ->
+            val trimmed = raw.trim()
+            if (trimmed.isBlank()) return@mapNotNull null
+            val idx = trimmed.indexOf("#audio=")
+            if (idx > 0) {
+                trimmed.substring(0, idx).trim() to trimmed.substring(idx + "#audio=".length).trim()
+            } else {
+                trimmed to ""
             }
         }
-        if (!found) throw ErrorLoadingException("Abyss/Byse não liberaram vídeo; o servidor pode estar indisponível ou ter mudado")
+
+        val results = targets.amap { (targetUrl, audioTag) ->
+            var localFound = false
+            val doc = try {
+                app.get(targetUrl, referer = mainUrl).document
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                return@amap false
+            }
+
+            var btnIdx = 0
+            for (button in doc.select("[data-source]")) {
+                btnIdx++
+                val source = button.attr("data-source")
+                val rawSub = button.attr("data-subtitles").trim()
+                if (rawSub.startsWith("http")) {
+                    subtitleCallback(newSubtitleFile("Português", rawSub))
+                }
+                val host = runCatching { URI(source).host }.getOrNull().orEmpty()
+                val rawBtnText = button.text().replace(Regex("""\s+"""), " ").trim()
+                val label = when {
+                    audioTag.isNotBlank() && rawBtnText.isNotBlank() && !rawBtnText.contains(audioTag, ignoreCase = true) ->
+                        "$audioTag · $rawBtnText"
+                    audioTag.isNotBlank() && rawBtnText.isBlank() ->
+                        "$audioTag #$btnIdx"
+                    rawBtnText.isNotBlank() -> rawBtnText
+                    else -> "Player #$btnIdx"
+                }
+                try {
+                    val resolved = when {
+                        host.contains("byse") -> ByseResolver().resolve(source, targetUrl, label, subtitleCallback, callback)
+                        (host == "abyssplayer.com" || host.endsWith(".abyssplayer.com")) && !isCasting ->
+                            AbyssResolver(proxy).resolve(source, targetUrl, label, callback)
+                        else -> false
+                    }
+                    localFound = resolved || localFound
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    android.util.Log.w("UltraCineTV", "$host: ${e.javaClass.simpleName}: ${e.message?.replace(Regex("https?://[^\\s]+"), "[url]")?.take(160)}")
+                }
+            }
+            localFound
+        }
+
+        if (results.none { it }) {
+            throw ErrorLoadingException("Abyss/Byse não liberaram vídeo; o servidor pode estar indisponível ou ter mudado")
+        }
         return true
     }
 }

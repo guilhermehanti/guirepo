@@ -804,14 +804,14 @@ class CineAgora : MainAPI() {
             if (seriesSlugs.size == 1) {
                 val (label, slug) = seriesSlugs.first()
                 val apiEpisodes = fetchEpisodesFromApi(slug).map { ep ->
-                    if (label.isNotBlank()) {
-                        newEpisode("$label|${ep.data}") {
-                            this.name = ep.name
-                            this.season = ep.season
-                            this.episode = ep.episode
-                            this.description = ep.description
-                        }
-                    } else ep
+                    // Keep URL first (starts with https://) so CloudStream's newEpisode fixUrl() never corrupts it
+                    val taggedUrl = if (label.isNotBlank()) "${ep.data}#label=$label" else ep.data
+                    newEpisode(taggedUrl) {
+                        this.name = ep.name
+                        this.season = ep.season
+                        this.episode = ep.episode
+                        this.description = ep.description
+                    }
                 }
                 if (apiEpisodes.isNotEmpty()) {
                     return apiEpisodes.sortedWith(compareBy({ it.season }, { it.episode }))
@@ -823,7 +823,7 @@ class CineAgora : MainAPI() {
                     val epList = fetchEpisodesFromApi(slug)
                     for (ep in epList) {
                         val key = (ep.season ?: 1) to (ep.episode ?: 1)
-                        val tagged = if (label.isNotBlank()) "$label|${ep.data}" else ep.data
+                        val tagged = if (label.isNotBlank()) "${ep.data}#label=$label" else ep.data
                         val entry = mergedByKey.getOrPut(key) { ep to mutableListOf() }
                         if (!entry.second.contains(tagged)) {
                             entry.second.add(tagged)

@@ -21,19 +21,13 @@ object CineAgoraExtractor {
         subtitleCallback: (SubtitleFile) -> Unit = {},
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // Support multi-audio entries encoded as "Dublado|url1||Legendado|url2"
-        if (url.contains("||") || (url.contains("|http") && !url.startsWith("http"))) {
+        // Support multi-audio entries encoded as "url1#label=Dublado||url2#label=Legendado"
+        // (and backwards-compatible with legacy "Label|https://..." or fixUrl-prefixed ".../Label|https://...")
+        if (url.contains("||") || url.contains("#label=") || url.contains("|http")) {
             var foundAny = false
             val entries = url.split("||").map { it.trim() }.filter { it.isNotBlank() }
             for (entry in entries) {
-                val pipeIdx = entry.indexOf("|http")
-                val (entryName, entryUrl) = if (pipeIdx > 0) {
-                    val lbl = entry.substring(0, pipeIdx).trim()
-                    val linkLabel = if (lbl.isNotBlank()) "$PRIMARY_SOURCE - $lbl" else name
-                    linkLabel to entry.substring(pipeIdx + 1).trim()
-                } else {
-                    name to entry
-                }
+                val (entryName, entryUrl) = parseTaggedEntry(entry, name)
                 if (extractSingleUrl(entryUrl, entryName, subtitleCallback, callback)) {
                     foundAny = true
                 }
@@ -42,6 +36,24 @@ object CineAgoraExtractor {
         }
 
         return extractSingleUrl(url, name, subtitleCallback, callback)
+    }
+
+    private fun parseTaggedEntry(entry: String, defaultName: String): Pair<String, String> {
+        val hashIdx = entry.indexOf("#label=")
+        if (hashIdx > 0) {
+            val cleanUrl = entry.substring(0, hashIdx).trim()
+            val lbl = entry.substring(hashIdx + "#label=".length).trim()
+            val linkLabel = if (lbl.isNotBlank()) "$PRIMARY_SOURCE - $lbl" else defaultName
+            return linkLabel to cleanUrl
+        }
+        val pipeIdx = entry.indexOf("|http")
+        if (pipeIdx > 0) {
+            val rawPrefix = entry.substring(0, pipeIdx).trim()
+            val lbl = rawPrefix.substringAfterLast("/").trim()
+            val linkLabel = if (lbl.isNotBlank()) "$PRIMARY_SOURCE - $lbl" else defaultName
+            return linkLabel to entry.substring(pipeIdx + 1).trim()
+        }
+        return defaultName to entry
     }
 
     private suspend fun extractSingleUrl(

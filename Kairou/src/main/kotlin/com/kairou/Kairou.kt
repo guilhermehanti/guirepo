@@ -93,6 +93,7 @@ class Kairou : MainAPI() {
             val detailJson = app.get("$mainUrl/api/tmdb/movie/$id?language=pt-BR", headers = defaultHeaders()).text
             val obj = JSONObject(detailJson)
             val title = obj.optString("title").ifBlank { obj.optString("original_title") }.trim()
+            val origTitle = obj.optString("original_title").ifBlank { title }.trim()
             val poster = KairouParser.tmdbImage(obj.optString("poster_path"), "w500")
             val backdrop = KairouParser.tmdbImage(obj.optString("backdrop_path"), "w1280")
             val year = obj.optString("release_date").take(4).toIntOrNull()
@@ -100,8 +101,9 @@ class Kairou : MainAPI() {
             val plot = obj.optString("overview").trim().ifBlank { null }
             val tags = parseGenres(obj)
             val imdbId = obj.optString("imdb_id").trim().takeIf { it.startsWith("tt") }.orEmpty()
+            val safeTitle = URLEncoder.encode(origTitle, "UTF-8")
 
-            return newMovieLoadResponse(title, clean, TvType.Movie, "movie|$id|$imdbId") {
+            return newMovieLoadResponse(title, clean, TvType.Movie, "$mainUrl/play|movie|$id|$imdbId|$safeTitle|${year ?: ""}") {
                 this.posterUrl = poster
                 this.backgroundPosterUrl = backdrop ?: poster
                 this.year = year
@@ -117,6 +119,7 @@ class Kairou : MainAPI() {
         ).text
         val obj = JSONObject(detailJson)
         val title = obj.optString("name").ifBlank { obj.optString("original_name") }.trim()
+        val origTitle = obj.optString("original_name").ifBlank { title }.trim()
         val poster = KairouParser.tmdbImage(obj.optString("poster_path"), "w500")
         val backdrop = KairouParser.tmdbImage(obj.optString("backdrop_path"), "w1280")
         val year = obj.optString("first_air_date").take(4).toIntOrNull()
@@ -130,6 +133,7 @@ class Kairou : MainAPI() {
         } == true)
         val isAnime = hasAnimationGenre && origLang == "ja"
         val kindFlag = if (isAnime) "anime" else "tv"
+        val safeTitle = URLEncoder.encode(origTitle, "UTF-8")
 
         val seasonNumbers = mutableListOf<Int>()
         val seasonsArr = obj.optJSONArray("seasons")
@@ -159,7 +163,7 @@ class Kairou : MainAPI() {
             for (epList in fetched) {
                 for (ep in epList) {
                     allEpisodes.add(
-                        newEpisode("tv|$id|${ep.season}|${ep.episode}|$imdbId|$kindFlag") {
+                        newEpisode("$mainUrl/play|tv|$id|${ep.season}|${ep.episode}|$imdbId|$kindFlag|$safeTitle|${year ?: ""}") {
                             this.name = ep.name
                             this.season = ep.season
                             this.episode = ep.episode
@@ -197,8 +201,14 @@ class Kairou : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val parts = data.split("|")
-        val type = parts.getOrNull(0) ?: return false
+        val rawParts = data.split("|")
+        // Handle both "$mainUrl/play|movie|..." and legacy "movie|..." (including fixUrl-prefixed ".../movie|...")
+        val parts = if (rawParts.firstOrNull()?.contains("/play") == true) {
+            rawParts.drop(1)
+        } else {
+            rawParts
+        }
+        val type = parts.getOrNull(0)?.substringAfterLast("/") ?: return false
         val id = parts.getOrNull(1) ?: return false
 
         val extractUrls = mutableListOf<String>()
@@ -206,8 +216,16 @@ class Kairou : MainAPI() {
         val subEndpoint: String?
 
         if (type == "movie") {
-            extractUrls.add("$mainUrl/api/extract?tmdbId=$id&type=movie")
             imdbId = parts.getOrNull(2).orEmpty().trim()
+            val encodedTitle = parts.getOrNull(3).orEmpty().trim()
+            val year = parts.getOrNull(4).orEmpty().trim()
+            val qs = buildString {
+                append("$mainUrl/api/extract?tmdbId=$id&type=movie")
+                if (imdbId.startsWith("tt")) append("&imdbId=$imdbId")
+                if (encodedTitle.isNotBlank()) append("&title=$encodedTitle")
+                if (year.isNotBlank()) append("&year=$year")
+            }
+            extractUrls.add(qs)
             subEndpoint = imdbId.takeIf { it.startsWith("tt") }
                 ?.let { "https://opensubtitles-v3.strem.io/subtitles/movie/$it.json" }
         } else {
@@ -215,7 +233,14 @@ class Kairou : MainAPI() {
             val e = parts.getOrNull(3) ?: "1"
             imdbId = parts.getOrNull(4).orEmpty().trim()
             val isAnime = parts.getOrNull(5) == "anime"
-            val baseExtract = "$mainUrl/api/extract?tmdbId=$id&type=tv&season=$s&episode=$e"
+            val encodedTitle = parts.getOrNull(6).orEmpty().trim()
+            val year = parts.getOrNull(7).orEmpty().trim()
+            val baseExtract = buildString {
+                append("$mainUrl/api/extract?tmdbId=$id&type=tv&season=$s&episode=$e")
+                if (imdbId.startsWith("tt")) append("&imdbId=$imdbId")
+                if (encodedTitle.isNotBlank()) append("&title=$encodedTitle")
+                if (year.isNotBlank()) append("&year=$year")
+            }
             extractUrls.add(baseExtract)
             if (isAnime) {
                 // Unlocks both Aurora PT-BR Dub and Aurora PT-BR Leg on animes
