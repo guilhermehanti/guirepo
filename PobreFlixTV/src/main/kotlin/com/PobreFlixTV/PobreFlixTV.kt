@@ -12,13 +12,17 @@ import java.net.URLEncoder
 
 @CloudstreamPlugin
 class PobreFlixTVPlugin : Plugin() {
+    private var browserStreams: PobreFlixBrowserStream? = null
     override fun load(context: Context) {
-        registerMainAPI(PobreFlixTV())
+        val streams = PobreFlixBrowserStream()
+        browserStreams = streams
+        registerMainAPI(PobreFlixTV(streams))
     }
+    override fun beforeUnload() { browserStreams?.close(); browserStreams = null }
 }
 
-class PobreFlixTV : MainAPI() {
-    override var mainUrl = "https://www.pobreflixtvfree.net"
+class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrowserStream) : MainAPI() {
+    override var mainUrl = "https://www.pobreflixtvfilmes.com"
     override var name = "PobreFlixTV"
     override val hasMainPage = true
     override var lang = "pt-br"
@@ -29,8 +33,9 @@ class PobreFlixTV : MainAPI() {
     companion object {
         private const val PLENOFLU_URL = "https://plenoflu.com"
         private const val VAIQUECOL_URL = "https://vaiquecol.com"
+        private const val SUPERFLIX_ORIGIN = "https://superflixapi.boats"
         private const val USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
 
     override val mainPage = mainPageOf(
@@ -219,7 +224,7 @@ class PobreFlixTV : MainAPI() {
             val isHls = streamUrl.contains(".m3u8", ignoreCase = true) || json.optBoolean("hls", false)
             callback(
                 newExtractorLink(
-                    source = label,
+                    source = name,
                     name = label,
                     url = streamUrl,
                     type = if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
@@ -238,6 +243,80 @@ class PobreFlixTV : MainAPI() {
         }
     }
 
+    private suspend fun resolvePlenofluEmbeds(plenofluUrl: String): List<String> {
+        val urls = mutableListOf<String>()
+        try {
+            val plenoHtml = app.get(plenofluUrl, headers = defaultHeaders("$mainUrl/")).text
+            val ajaxHeaders = mapOf(
+                "User-Agent" to USER_AGENT,
+                "X-Requested-With" to "XMLHttpRequest",
+                "Content-Type" to "application/x-www-form-urlencoded"
+            )
+
+            // TV episodes fetch their server list via action=getOptions using DIRECT_EPISODE_ID.
+            val directEpId = Regex("""DIRECT_EPISODE_ID\s*=\s*['"]?(\d+)""").find(plenoHtml)?.groupValues?.get(1)
+            if (!directEpId.isNullOrBlank()) {
+                val optResp = app.post(
+                    url = "$PLENOFLU_URL/api",
+                    data = mapOf("action" to "getOptions", "contentid" to directEpId),
+                    referer = plenofluUrl,
+                    headers = ajaxHeaders
+                ).text
+                val options = JSONObject(optResp).optJSONObject("data")?.optJSONArray("options")
+                if (options != null) {
+                    for (i in 0 until options.length()) {
+                        val opt = options.optJSONObject(i) ?: continue
+                        val directUrl = opt.optString("url").trim()
+                        if (directUrl.startsWith("http")) {
+                            urls.add(directUrl)
+                        } else {
+                            val vid = opt.optString("ID").trim()
+                            if (vid.isNotBlank()) {
+                                decodePlenofluPlayer(vid, plenofluUrl, ajaxHeaders)?.let { urls.add(it) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Movies embed their option data-id attributes directly in the HTML.
+            val dataIds = Regex("""data-id="([^"]+)"""").findAll(plenoHtml)
+                .map { it.groupValues[1].trim() }
+                .filter { it.isNotBlank() && !it.contains("\${") }
+                .distinct()
+                .toList()
+            for (vid in dataIds) {
+                if (vid.contains("vaiquecol", true) || vid.contains("superflix", true) || vid.contains("warez", true)) {
+                    decodePlenofluPlayer(vid, plenofluUrl, ajaxHeaders)?.let { urls.add(it) }
+                }
+            }
+        } catch (_: Exception) {
+            // Fall back to deterministic SuperFlix URL below
+        }
+        return urls.distinct()
+    }
+
+    private suspend fun decodePlenofluPlayer(
+        videoId: String,
+        referer: String,
+        ajaxHeaders: Map<String, String>
+    ): String? {
+        return try {
+            val respText = app.post(
+                url = "$PLENOFLU_URL/api",
+                data = mapOf("action" to "getPlayer", "video_id" to videoId),
+                referer = referer,
+                headers = ajaxHeaders
+            ).text
+            val b64 = JSONObject(respText).optJSONObject("data")?.optString("video_url").orEmpty().trim()
+            if (b64.isBlank()) return null
+            val decoded = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8).trim()
+            decoded.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -252,57 +331,74 @@ class PobreFlixTV : MainAPI() {
                 ?: return false
         }
 
-        // 1. Tenta derivar direto a URL do VaiQueCol (funciona para filmes e episódios de séries)
+        var found = false
+        var vaiQueColFound = false
+
+        // 1. Tenta derivar direto a URL do VaiQueCol (instantâneo, sem verificação)
         val tvMatch = Regex("""plenoflu\.com/tvshow/(\d+)/(\d+)/(\d+)""").find(plenofluUrl)
+        val movieMatch = Regex("""plenoflu\.com/movie/([^/?#]+)""").find(plenofluUrl)
+
         if (tvMatch != null) {
             val tmdbId = tvMatch.groupValues[1]
             val s = tvMatch.groupValues[2]
             val e = tvMatch.groupValues[3]
             val directEmbed = "$VAIQUECOL_URL/embed2/$tmdbId-$s-$e"
-            if (extractFromVaiQueCol(directEmbed, "$name - Dublado/Dual", callback)) {
-                return true
+            if (extractFromVaiQueCol(directEmbed, "$name • VaiQueCol • Dublado", callback)) {
+                found = true
+                vaiQueColFound = true
             }
-        }
-
-        val movieMatch = Regex("""plenoflu\.com/movie/([^/?#]+)""").find(plenofluUrl)
-        if (movieMatch != null) {
+        } else if (movieMatch != null) {
             val movieId = movieMatch.groupValues[1]
             val directEmbed = "$VAIQUECOL_URL/embed2/$movieId"
-            if (extractFromVaiQueCol(directEmbed, "$name - Dublado/Dual", callback)) {
-                return true
+            if (extractFromVaiQueCol(directEmbed, "$name • VaiQueCol • Dublado", callback)) {
+                found = true
+                vaiQueColFound = true
             }
         }
 
-        // 2. Fallback via Plenoflu /api (action=getPlayer)
-        return try {
-            val plenoHtml = app.get(plenofluUrl, headers = defaultHeaders()).text
-            val vaiQueIds = Regex("""data-id="([^"]*vaiquecol[^"]*)"""").findAll(plenoHtml)
-                .map { it.groupValues[1] }
-                .distinct()
-                .toList()
+        // 2. Consulta as opções reais do Plenoflu (VaiQueCol fallback + SuperFlix / WarezCDN)
+        val embeds = resolvePlenofluEmbeds(plenofluUrl)
+        if (!vaiQueColFound) {
+            for (u in embeds) {
+                if (u.contains("vaiquecol.com", ignoreCase = true) &&
+                    extractFromVaiQueCol(u, "$name • VaiQueCol • Dublado", callback)
+                ) {
+                    found = true
+                    vaiQueColFound = true
+                    break
+                }
+            }
+        }
 
-            var found = false
-            for (vid in vaiQueIds) {
-                val respText = app.post(
-                    url = "$PLENOFLU_URL/api",
-                    data = mapOf("action" to "getPlayer", "video_id" to vid),
-                    referer = plenofluUrl,
-                    headers = mapOf(
-                        "User-Agent" to USER_AGENT,
-                        "X-Requested-With" to "XMLHttpRequest",
-                        "Content-Type" to "application/x-www-form-urlencoded"
+        // 3. Player interativo (WebView visível para o usuário validar Cloudflare + reprodução nativa)
+        if (!isCasting) {
+            val rawSuperflix = embeds.firstOrNull {
+                it.contains("superflixapi.", ignoreCase = true) || it.contains("warezcdn.", ignoreCase = true)
+            } ?: when {
+                tvMatch != null -> "$SUPERFLIX_ORIGIN/serie/${tvMatch.groupValues[1]}/${tvMatch.groupValues[2]}/${tvMatch.groupValues[3]}"
+                movieMatch != null -> "$SUPERFLIX_ORIGIN/filme/${movieMatch.groupValues[1]}"
+                else -> null
+            }
+
+            if (!rawSuperflix.isNullOrBlank()) {
+                val cleanEmbed = rawSuperflix.substringBefore('#')
+                val providerLabel = if (cleanEmbed.contains("warezcdn", ignoreCase = true)) "WarezCDN" else "SuperFlix"
+                listOf(false, true).forEach { subbed ->
+                    callback(
+                        newExtractorLink(
+                            source = name,
+                            name = "$providerLabel • ${if (subbed) "Legendado" else "Dublado"}",
+                            url = browserStreams.register(providerLabel, cleanEmbed, subbed),
+                            type = ExtractorLinkType.M3U8
+                        ) {
+                            this.quality = Qualities.Unknown.value
+                        }
                     )
-                ).text
-                val b64 = JSONObject(respText).optJSONObject("data")?.optString("video_url").orEmpty()
-                if (b64.isBlank()) continue
-                val decodedUrl = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8).trim()
-                if (decodedUrl.contains("vaiquecol.com") && extractFromVaiQueCol(decodedUrl, "$name - Dublado/Dual", callback)) {
                     found = true
                 }
             }
-            found
-        } catch (_: Exception) {
-            false
         }
+
+        return found
     }
 }
