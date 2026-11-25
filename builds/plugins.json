@@ -86,10 +86,10 @@
     },
     {
         "iconUrl": "https://cineagora.club/templates/cineagora/images/touch-icon-180x180.png",
-        "fileHash": "sha256-4deba29f76b076d35753f1a199fe0fa4e964d2950106921b8c755c62b3d759b2",
+        "fileHash": "sha256-8ed167c9c789c2b25351fa87be07469adbda954bdd0629842ec7e28ce3e6fd6d",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 59051,
+        "fileSize": 62498,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -100,7 +100,7 @@
             "Series",
             "Animes"
         ],
-        "version": 3,
+        "version": 4,
         "internalName": "CineAgora",
         "description": "Assista filmes e s\u00e9ries online gr\u00e1tis em HD no CineAgora",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/CineAgora.cs3",
@@ -148,10 +148,10 @@
     },
     {
         "iconUrl": "https://filmeflix.space/favicon.ico",
-        "fileHash": "sha256-606d68ce0c0968b51955d1c14dbd46e0867d97b6b470b1fe1ca1a0875aeabd5b",
+        "fileHash": "sha256-21db7ef82a06bd93c380cc3a50565ddc2947c195d31a6954d18bc32afa5f9211",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 40154,
+        "fileSize": 41361,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -162,7 +162,7 @@
             "Series",
             "Cartoon"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "FilmeFlix",
         "description": "Filmes e S\u00e9ries Dublados e Nacionais em HD no FilmeFlix (Vidmoly e Abyss)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/FilmeFlix.cs3",
@@ -170,10 +170,10 @@
     },
     {
         "iconUrl": "https://kairou.space/apple-touch-icon.png",
-        "fileHash": "sha256-4c117807f621d92834ccbd79c696c64d17981dc54ca2cc417f25bacc70b9ad29",
+        "fileHash": "sha256-52bdd538e82a80d4f8816a6db350f33af519a86e8d23f5a06322c2bb48987920",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 25011,
+        "fileSize": 28909,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -184,7 +184,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "Kairou",
         "description": "Filmes, S\u00e9ries e Animes em 4K/HD Dublados e Legendados no Kairou (sem Cloudflare)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/Kairou.cs3",
@@ -338,10 +338,10 @@
     },
     {
         "iconUrl": "https://www.ultracinetv.lat/favicon.ico",
-        "fileHash": "sha256-7e9c66c8085a84aae885e25d01dca2cf6088576c6b74a072cb4d136fa3840626",
+        "fileHash": "sha256-ef1754f4b0d3d93b62f851edaaf21a1bf3c499b8fbeab95a9c30b46dadffbea5",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 45999,
+        "fileSize": 46378,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -351,7 +351,7 @@
             "Movies",
             "Series"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "UltraCineTV",
         "description": "Filmes e S\u00e9ries Dublados e Legendados em HD no UltraCineTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/UltraCineTV.cs3",
