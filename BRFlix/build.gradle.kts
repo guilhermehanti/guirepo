@@ -1,4 +1,4 @@
-version = 9
+version = 10
 
 cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")

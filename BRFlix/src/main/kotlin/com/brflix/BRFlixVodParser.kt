@@ -383,7 +383,7 @@ internal object BRFlixVodParser {
             val providerName = obj.optString("provider").trim()
                 .removePrefix("BRFLIX ").removePrefix("BRFlix ")
                 .ifBlank { "Ultra HD" }
-            val label = "BRFlix • $providerName (${quality}p $audioLabel)"
+            val label = "BRFlix • $providerName • $audioLabel"
 
             val hdrs = mutableMapOf<String, String>()
             val hdrObj = obj.optJSONObject("headers")

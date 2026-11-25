@@ -9,12 +9,13 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.LinearLayout
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebViewCompat
@@ -26,6 +27,8 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -38,6 +41,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Keeps the verified browser session as transport; CloudStream still decodes the HLS. */
 internal class BRFlixBrowserStream : Closeable {
@@ -54,6 +58,10 @@ internal class BRFlixBrowserStream : Closeable {
         .followSslRedirects(true)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+    private val noRedirectHttp = http.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
     @Volatile private var closed = false
 
@@ -153,11 +161,22 @@ internal class BRFlixBrowserStream : Closeable {
         val finalUrl: String? = null
     )
 
+    private data class RangeFetchResult(
+        val status: Int,
+        val bytes: ByteArray,
+        val contentType: String,
+        val totalSize: Long,
+        val finalUrl: String
+    )
+
     private inner class Session(val provider: String, val embed: String, val subbed: Boolean, val key: String) : Closeable {
         val id = UUID.randomUUID().toString()
         @Volatile var touched = System.currentTimeMillis()
         private val master = CompletableDeferred<String>()
         private val pending = ConcurrentHashMap<String, CompletableDeferred<Reply>>()
+        private val nativePending = ConcurrentHashMap<String, CompletableDeferred<Reply>>()
+        private val nativeRelays = ConcurrentHashMap<String, JavaScriptReplyProxy>()
+        private val nativeFetchInFlight = AtomicInteger(0)
         @Volatile private var rateLimited: Pair<Long, Reply>? = null
         private val resources = ConcurrentHashMap<String, String>()
         private val hosts = ConcurrentHashMap.newKeySet<String>()
@@ -167,6 +186,14 @@ internal class BRFlixBrowserStream : Closeable {
         private var dialog: Dialog? = null
         private var relay: JavaScriptReplyProxy? = null
         private var captured: String? = null
+        @Volatile var isNativeMedia = false
+        @Volatile var capturedNativeOrigin: String? = null
+        @Volatile var capturedNativeHeaders: Map<String, String> = emptyMap()
+        @Volatile var resolvedDirectNativeUrl: String? = null
+        @Volatile var nativeTotalSize: Long = -1L
+        private val remuxLock = Any()
+        @Volatile private var remuxedMp4: Mp4ToHlsRemuxer.RemuxedMp4? = null
+        @Volatile private var nativeHlsPlaylist: ByteArray? = null
         @Volatile var browserUserAgent: String = DEFAULT_UA
         @Volatile var frameOrigin: String? = null
         private var playButton: Button? = null
@@ -189,9 +216,16 @@ internal class BRFlixBrowserStream : Closeable {
                     web.settings.javaScriptEnabled = true
                     web.settings.domStorageEnabled = true
                     web.settings.mediaPlaybackRequiresUserGesture = false
+                    web.webChromeClient = WebChromeClient()
                     CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
                     val cdn = "https://xn--80adalaab0boiodbce7addhh.delivery"
                     val videoOrigins = setOf(cdn, VIDSRC_PLAYER)
+                    val providerOrigins = setOf(
+                        "https://superflixapi.baby",
+                        "https://superflixapi.boats",
+                        "https://warezcdn.sbs"
+                    )
+                    // HLS transport listener: strictly isolated to videoOrigins so provider pages can never hijack it.
                     WebViewCompat.addWebMessageListener(web, "BRFlixTransport", videoOrigins) { _, message, source, _, reply ->
                         val cleanOrigin = source.toString().trimEnd('/')
                         if (cleanOrigin !in videoOrigins || disposed) return@addWebMessageListener
@@ -215,13 +249,53 @@ internal class BRFlixBrowserStream : Closeable {
                             future.complete(result)
                         } catch (e: Exception) { fail(e) }
                     }
+                    // Separate native-player transport listener for /player/native/media-source/ fallback & pause.
+                    WebViewCompat.addWebMessageListener(web, "BRFlixNativeTransport", providerOrigins) { _, message, source, _, reply ->
+                        val cleanOrigin = source.toString().trimEnd('/')
+                        if (cleanOrigin !in providerOrigins || disposed) return@addWebMessageListener
+                        val data = message.data ?: return@addWebMessageListener
+                        if (data == "ready") {
+                            nativeRelays[cleanOrigin] = reply
+                        } else try {
+                            val obj = JSONObject(data)
+                            val future = nativePending.remove(obj.optString("id")) ?: return@addWebMessageListener
+                            val body = obj.optString("body")
+                            require(body.length <= 24 * 1024 * 1024)
+                            val result = Reply(obj.optInt("status"), Base64.decode(body, Base64.DEFAULT),
+                                obj.optString("type", "application/octet-stream"),
+                                obj.optString("range").takeUnless { it.isBlank() || it == "null" },
+                                obj.optString("url").takeUnless { it.isBlank() || it == "null" })
+                            if (result.status == 429) rateLimited = retryAt(obj.optString("retryAfter")) to result
+                            future.complete(result)
+                        } catch (e: Exception) {
+                            android.util.Log.w("BRFlix", "NativeTransport err: ${e.message}")
+                        }
+                    }
                     WebViewCompat.addDocumentStartJavaScript(web, TRANSPORT, videoOrigins)
+                    WebViewCompat.addDocumentStartJavaScript(web, NATIVE_TRANSPORT, providerOrigins)
                     // Only ordinary language/server controls; verification widgets are left to the user.
-                    WebViewCompat.addDocumentStartJavaScript(web, selectionScript(subbed), setOf(
-                        "https://superflixapi.baby", "https://superflixapi.boats", "https://warezcdn.sbs"))
+                    WebViewCompat.addDocumentStartJavaScript(web, selectionScript(subbed), providerOrigins)
                     web.webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                             val uri = request.url
+                            val uriOrigin = if (uri.scheme == "https" && uri.host != null) "https://${uri.host}" else null
+                            val nativeMedia = uriOrigin != null && uriOrigin in providerOrigins &&
+                                uri.path?.startsWith("/player/native/media-source/") == true
+                            if (nativeMedia) {
+                                // Let our own WebView fallback fetch() pass directly to the network.
+                                if (nativeFetchInFlight.get() > 0) return null
+                                val headersCopy = request.requestHeaders?.toMap().orEmpty()
+                                ui.post {
+                                    if (!disposed && !master.isCompleted) {
+                                        captured = uri.toString()
+                                        capturedNativeOrigin = uriOrigin
+                                        capturedNativeHeaders = headersCopy
+                                        completeNative()
+                                    }
+                                }
+                                // Prevent the hidden WebView's <video> from streaming the same MP4 concurrently.
+                                return WebResourceResponse("video/mp4", null, ByteArrayInputStream(ByteArray(0)))
+                            }
                             val cdnHls = uri.host == "xn--80adalaab0boiodbce7addhh.delivery" && uri.path?.endsWith("/master.txt") == true
                             val vidsrcPlaylist = uri.path?.let {
                                 it.endsWith(".m3u8") || Regex("/pl/[A-Za-z0-9_-]{40,160}/?").matches(it)
@@ -231,19 +305,6 @@ internal class BRFlixBrowserStream : Closeable {
                             }
                             if (uri.scheme == "https" && (cdnHls || vidsrcHls)) {
                                 ui.post { if (!disposed) { captured = uri.toString(); complete() } }
-                            } else if (uri.scheme == "https" && !master.isCompleted) {
-                                val path = uri.path.orEmpty()
-                                val interesting = path.contains("media") || path.contains("player") ||
-                                    path.contains("video") || path.contains(".m3u8") || path.contains(".mp4") ||
-                                    path.contains("master.txt") || path.contains("embed")
-                                if (interesting && uri.host?.contains("cloudflare") != true && uri.host?.contains("google") != true) {
-                                    val summary = "${uri.host}${path.take(48)}"
-                                    ui.post {
-                                        if (!disposed && !master.isCompleted) {
-                                            statusText?.text = "Preparando $provider • ${if (subbed) "Legendado" else "Dublado"}  [$summary]"
-                                        }
-                                    }
-                                }
                             }
                             return null
                         }
@@ -280,7 +341,7 @@ internal class BRFlixBrowserStream : Closeable {
                     web.loadDataWithBaseURL("https://brflix.lat/",
                         "<!doctype html><meta name=viewport content=width=device-width,initial-scale=1>" +
                             "<style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#111}</style>" +
-                            "<iframe src=\"$embed\" allow=\"autoplay;fullscreen\"></iframe>",
+                            "<iframe src=\"$embed\" allow=\"autoplay *; encrypted-media *; picture-in-picture *; fullscreen *\" allowfullscreen></iframe>",
                         "text/html", "UTF-8", null)
                     ui.postDelayed({ if (!master.isCompleted) fail(IllegalStateException("Tempo de verificação esgotado")) }, 90000)
                 } catch (e: Exception) { fail(e) }
@@ -289,11 +350,23 @@ internal class BRFlixBrowserStream : Closeable {
 
         private fun complete() {
             val url = captured ?: return
-            if (relay == null || master.isCompleted) return
+            if (isNativeMedia || relay == null || master.isCompleted) return
             relay?.postMessage("{\"action\":\"pause\"}")
             master.complete(url)
             dialog?.dismiss(); dialog = null
             // Retain the document and its message channel for subsequent native HLS requests.
+            (browser?.parent as? ViewGroup)?.removeView(browser)
+        }
+
+        private fun completeNative() {
+            val url = captured ?: return
+            if (master.isCompleted) return
+            isNativeMedia = true
+            capturedNativeOrigin?.let { origin ->
+                nativeRelays[origin]?.postMessage("{\"action\":\"stop\"}")
+            }
+            master.complete(url)
+            dialog?.dismiss(); dialog = null
             (browser?.parent as? ViewGroup)?.removeView(browser)
         }
 
@@ -311,6 +384,8 @@ internal class BRFlixBrowserStream : Closeable {
             master.completeExceptionally(error)
             pending.values.forEach { it.completeExceptionally(error) }
             pending.clear()
+            nativePending.values.forEach { it.completeExceptionally(error) }
+            nativePending.clear()
             close()
         }
 
@@ -337,6 +412,259 @@ internal class BRFlixBrowserStream : Closeable {
                 } catch (e: Exception) { future.completeExceptionally(e) }
             }
             return try { url to runBlocking { withTimeout(35000) { future.await() } } } finally { pending.remove(requestId) }
+        }
+
+        private fun fetchViaNativeWebView(url: String, range: String?): Reply? {
+            val origin = capturedNativeOrigin ?: return null
+            val nativeRelay = nativeRelays[origin] ?: return null
+            check(!disposed)
+            val requestId = UUID.randomUUID().toString()
+            val future = CompletableDeferred<Reply>()
+            nativePending[requestId] = future
+            nativeFetchInFlight.incrementAndGet()
+            ui.post {
+                try {
+                    check(!disposed)
+                    val request = JSONObject().put("id", requestId).put("url", url)
+                    if (range != null) request.put("range", range)
+                    nativeRelay.postMessage(request.toString())
+                } catch (e: Exception) { future.completeExceptionally(e) }
+            }
+            return try {
+                runBlocking { withTimeout(35000) { future.await() } }
+            } catch (_: Exception) {
+                null
+            } finally {
+                nativePending.remove(requestId)
+                nativeFetchInFlight.decrementAndGet()
+            }
+        }
+
+        /**
+         * Reads a single byte range from a `/player/native/media-source/...` endpoint using OkHttp
+         * with manual cross-host redirect handling (sending Cookie + captured Referer ONLY on the
+         * provider host and stripping them on cross-host CDN redirects). Falls back to WebView
+         * `BRFlixNativeTransport` only if the provider host rejects OkHttp (401/403/503).
+         */
+        private fun fetchNativeSingleChunk(rootUrl: String, offset: Long, length: Int): RangeFetchResult {
+            touched = System.currentTimeMillis()
+            val endByte = offset + length - 1
+            val rangeHeader = "bytes=$offset-$endByte"
+            val rootHost = runCatching { URI(rootUrl).host.orEmpty().lowercase() }.getOrDefault("")
+
+            fun executeOkHttpRange(targetUrl: String, isOriginalHost: Boolean): RangeFetchResult? {
+                val req = Request.Builder()
+                    .url(targetUrl)
+                    .header("User-Agent", browserUserAgent)
+                    .header("Range", rangeHeader)
+                if (isOriginalHost) {
+                    val cookies = runCatching { CookieManager.getInstance().getCookie(targetUrl) }.getOrNull()
+                    if (!cookies.isNullOrBlank()) req.header("Cookie", cookies)
+                    val capturedRef = capturedNativeHeaders.entries
+                        .firstOrNull { it.key.equals("Referer", ignoreCase = true) }?.value
+                    if (!capturedRef.isNullOrBlank()) {
+                        req.header("Referer", capturedRef)
+                    } else if (!capturedNativeOrigin.isNullOrBlank()) {
+                        req.header("Referer", "$capturedNativeOrigin/")
+                    }
+                    capturedNativeHeaders.entries
+                        .firstOrNull { it.key.equals("Accept-Language", ignoreCase = true) }?.value
+                        ?.takeIf { it.isNotBlank() }?.let { req.header("Accept-Language", it) }
+                    req.header("Accept", "*/*")
+                }
+                noRedirectHttp.newCall(req.build()).execute().use { resp ->
+                    val code = resp.code
+                    if (code in setOf(301, 302, 303, 307, 308)) {
+                        val loc = resp.header("Location")?.trim() ?: return null
+                        val nextUrl = URI(targetUrl).resolve(loc).toString()
+                        val nextHost = runCatching { URI(nextUrl).host.orEmpty().lowercase() }.getOrDefault("")
+                        return RangeFetchResult(code, ByteArray(0), "", -1L, nextUrl.also {
+                            if (nextHost != rootHost) { /* handled by loop */ }
+                        })
+                    }
+                    val ct = resp.header("Content-Type") ?: "application/octet-stream"
+                    val cr = resp.header("Content-Range")
+                    val cl = resp.header("Content-Length")?.trim()?.toLongOrNull() ?: -1L
+                    val totalSize = parseTotalFromContentRange(cr) ?: if (code == 200 && cl > 0) cl else -1L
+                    if (code !in 200..299) {
+                        return RangeFetchResult(code, ByteArray(0), ct, totalSize, targetUrl)
+                    }
+                    val stream = resp.body?.byteStream() ?: return RangeFetchResult(code, ByteArray(0), ct, totalSize, targetUrl)
+                    val out = ByteArrayOutputStream(minOf(length, 256 * 1024))
+                    val buf = ByteArray(32 * 1024)
+                    var remaining = length
+                    while (remaining > 0) {
+                        val n = stream.read(buf, 0, minOf(buf.size, remaining))
+                        if (n <= 0) break
+                        out.write(buf, 0, n)
+                        remaining -= n
+                    }
+                    return RangeFetchResult(code, out.toByteArray(), ct, totalSize, targetUrl)
+                }
+            }
+
+            // 1. Fast path: reuse resolved cross-host CDN URL directly when cached.
+            resolvedDirectNativeUrl?.let { cachedUrl ->
+                val direct = runCatching { executeOkHttpRange(cachedUrl, isOriginalHost = false) }.getOrNull()
+                if (direct != null && direct.status in 200..299 && direct.bytes.isNotEmpty()) {
+                    return direct
+                }
+                resolvedDirectNativeUrl = null
+            }
+
+            // 2. Walk from provider rootUrl following redirects manually so cross-host CDNs never receive
+            //    provider cookies or Referer/Origin headers.
+            var curUrl = rootUrl
+            var lastStatus = 0
+            for (hop in 0 until 6) {
+                val curHost = runCatching { URI(curUrl).host.orEmpty().lowercase() }.getOrDefault("")
+                val isOrig = curHost == rootHost
+                val res = runCatching { executeOkHttpRange(curUrl, isOrig) }.getOrNull()
+                if (res == null) {
+                    lastStatus = 0
+                    break
+                }
+                if (res.status in setOf(301, 302, 303, 307, 308)) {
+                    curUrl = res.finalUrl
+                    continue
+                }
+                lastStatus = res.status
+                if (res.status in 200..299) {
+                    if (!isOrig) resolvedDirectNativeUrl = curUrl
+                    return res
+                }
+                break
+            }
+
+            // 3. Fallback: if provider host rejected OkHttp (e.g. TLS check 401/403/503 or network error),
+            //    use same-origin WebView fetch() on the verified session.
+            if (lastStatus == 0 || lastStatus == 401 || lastStatus == 403 || lastStatus == 503) {
+                val wv = fetchViaNativeWebView(rootUrl, rangeHeader)
+                if (wv != null && wv.status in 200..299) {
+                    val total = parseTotalFromContentRange(wv.range) ?: if (wv.status == 200) wv.bytes.size.toLong() else -1L
+                    return RangeFetchResult(wv.status, wv.bytes, wv.type, total, wv.finalUrl ?: rootUrl)
+                }
+                if (wv != null && wv.status > 0) {
+                    return RangeFetchResult(wv.status, wv.bytes, wv.type, -1L, wv.finalUrl ?: rootUrl)
+                }
+            }
+            error("Falha ao ler mídia nativa (HTTP $lastStatus)")
+        }
+
+        private fun createNativeRangeReader(rootUrl: String, knownTotalSize: Long): Mp4ToHlsRemuxer.ByteRangeReader {
+            return object : Mp4ToHlsRemuxer.ByteRangeReader {
+                override fun readRange(offset: Long, length: Int): ByteArray {
+                    if (length <= 0) return ByteArray(0)
+                    val targetLen = if (knownTotalSize > 0) {
+                        minOf(length.toLong(), (knownTotalSize - offset).coerceAtLeast(0L)).toInt()
+                    } else length
+                    if (targetLen <= 0) return ByteArray(0)
+                    val out = ByteArray(targetLen)
+                    var filled = 0
+                    var attempts = 0
+                    while (filled < targetLen && attempts++ < 16) {
+                        val chunk = fetchNativeSingleChunk(rootUrl, offset + filled, targetLen - filled)
+                        require(chunk.status in 200..299 && chunk.bytes.isNotEmpty()) {
+                            "Native range read failed @${offset + filled} (HTTP ${chunk.status})"
+                        }
+                        // If server returned 200 (ignored Range) for a non-zero offset, fail fast rather than corrupting offsets.
+                        if (chunk.status == 200 && offset + filled > 0L) {
+                            error("Servidor de vídeo não suporta busca por intervalo (HTTP 200)")
+                        }
+                        val copy = minOf(chunk.bytes.size, targetLen - filled)
+                        System.arraycopy(chunk.bytes, 0, out, filled, copy)
+                        filled += copy
+                    }
+                    return if (filled == targetLen) out else out.copyOf(filled)
+                }
+            }
+        }
+
+        fun ensureNativePrepared(): Pair<String, ByteArray> {
+            val rootUrl = awaitRoot()
+            remuxedMp4?.let { remux ->
+                return "application/vnd.apple.mpegurl" to remux.buildPlaylist(
+                    initUrl = local(id, "init.mp4"),
+                    segmentUrl = { idx -> local(id, "seg-$idx.m4s") }
+                ).toByteArray(Charsets.UTF_8)
+            }
+            nativeHlsPlaylist?.let { hls ->
+                return "application/vnd.apple.mpegurl" to hls
+            }
+            synchronized(remuxLock) {
+                remuxedMp4?.let { remux ->
+                    return "application/vnd.apple.mpegurl" to remux.buildPlaylist(
+                        initUrl = local(id, "init.mp4"),
+                        segmentUrl = { idx -> local(id, "seg-$idx.m4s") }
+                    ).toByteArray(Charsets.UTF_8)
+                }
+                nativeHlsPlaylist?.let { hls ->
+                    return "application/vnd.apple.mpegurl" to hls
+                }
+
+                val probe = fetchNativeSingleChunk(rootUrl, 0L, 65536)
+                require(probe.status in 200..299 && probe.bytes.isNotEmpty()) {
+                    "Mídia nativa indisponível (HTTP ${probe.status})"
+                }
+                val prefix = probe.bytes.take(32).toByteArray().toString(Charsets.UTF_8).removePrefix("\uFEFF").trimStart()
+                if (prefix.startsWith("#EXTM3U")) {
+                    val fullBytes = if (probe.totalSize > probe.bytes.size && probe.totalSize <= 8 * 1024 * 1024) {
+                        createNativeRangeReader(rootUrl, probe.totalSize).readRange(0L, probe.totalSize.toInt())
+                    } else {
+                        probe.bytes
+                    }
+                    val rewritten = playlist(probe.finalUrl, fullBytes)
+                    nativeHlsPlaylist = rewritten
+                    return "application/vnd.apple.mpegurl" to rewritten
+                }
+
+                require(Mp4ToHlsRemuxer.looksLikeMp4(probe.bytes)) {
+                    "Formato de mídia não suportado (${probe.contentType})"
+                }
+                nativeTotalSize = probe.totalSize
+                val reader = createNativeRangeReader(rootUrl, probe.totalSize)
+                val parsed = Mp4ToHlsRemuxer.parse(reader, probe.bytes, probe.totalSize)
+                remuxedMp4 = parsed
+                val m3u8 = parsed.buildPlaylist(
+                    initUrl = local(id, "init.mp4"),
+                    segmentUrl = { idx -> local(id, "seg-$idx.m4s") }
+                ).toByteArray(Charsets.UTF_8)
+                return "application/vnd.apple.mpegurl" to m3u8
+            }
+        }
+
+        fun getNativeInitSegment(): ByteArray {
+            touched = System.currentTimeMillis()
+            ensureNativePrepared()
+            return remuxedMp4?.initSegment ?: error("Init segment indisponível")
+        }
+
+        fun getNativeMediaSegment(index: Int): ByteArray {
+            touched = System.currentTimeMillis()
+            val rootUrl = awaitRoot()
+            val remux = remuxedMp4 ?: run {
+                ensureNativePrepared()
+                remuxedMp4 ?: error("Remux MP4 indisponível")
+            }
+            val reader = createNativeRangeReader(rootUrl, nativeTotalSize)
+            return remux.buildMediaSegment(index, reader)
+        }
+
+        fun fetchNativeHlsResource(resource: String, range: String?): Pair<String, Reply> {
+            touched = System.currentTimeMillis()
+            val url = resources[resource] ?: error("Recurso expirado")
+            val wv = fetchViaNativeWebView(url, range)
+            if (wv != null && wv.status in 200..299) return url to wv
+            val req = Request.Builder().url(url).header("User-Agent", browserUserAgent)
+            val cookies = runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
+            if (!cookies.isNullOrBlank()) req.header("Cookie", cookies)
+            if (range != null) req.header("Range", range)
+            http.newCall(req.build()).execute().use { resp ->
+                val bytes = resp.body?.bytes() ?: ByteArray(0)
+                val ct = resp.header("Content-Type") ?: "application/octet-stream"
+                val cr = resp.header("Content-Range")
+                return url to Reply(resp.code, bytes, ct, cr, resp.request.url.toString())
+            }
         }
 
         private fun resource(source: String, relative: String): String {
@@ -405,7 +733,13 @@ internal class BRFlixBrowserStream : Closeable {
             disposed = true
             master.completeExceptionally(IllegalStateException("Sessão encerrada"))
             pending.values.forEach { it.completeExceptionally(IllegalStateException("Sessão encerrada")) }
-            pending.clear(); resources.clear()
+            pending.clear()
+            nativePending.values.forEach { it.completeExceptionally(IllegalStateException("Sessão encerrada")) }
+            nativePending.clear()
+            nativeRelays.clear()
+            resources.clear()
+            remuxedMp4 = null
+            nativeHlsPlaylist = null
             ui.post { dialog?.dismiss(); dialog = null; browser?.destroy(); browser = null; relay = null; playButton = null; statusText = null }
         }
     }
@@ -489,7 +823,40 @@ internal class BRFlixBrowserStream : Closeable {
                 }
                 val session = path.takeIf { it.size == 4 && it[1] == secret }?.get(2)?.let(sessions::get)
                 if (session == null) { write(client, 404, ByteArray(0), "text/plain", null); return }
-                val (reqUrl, rawResult) = session.fetch(path[3], range)
+                val resource = path[3]
+
+                // Wait for verification and check if this session resolved to a native MP4/media-source.
+                session.awaitRoot()
+                if (session.isNativeMedia) {
+                    when {
+                        resource == "master" -> {
+                            val (ct, body) = session.ensureNativePrepared()
+                            write(client, 200, if (method == "HEAD") ByteArray(0) else body, ct, null)
+                            return
+                        }
+                        resource == "init.mp4" -> {
+                            val initBytes = session.getNativeInitSegment()
+                            write(client, 200, if (method == "HEAD") ByteArray(0) else initBytes, "video/mp4", null)
+                            return
+                        }
+                        resource.startsWith("seg-") && resource.endsWith(".m4s") -> {
+                            val idx = resource.removePrefix("seg-").removeSuffix(".m4s").toIntOrNull()
+                            if (idx == null || idx < 0) {
+                                write(client, 404, ByteArray(0), "text/plain", null)
+                                return
+                            }
+                            val segBytes = session.getNativeMediaSegment(idx)
+                            write(client, 200, if (method == "HEAD") ByteArray(0) else segBytes, "video/mp4", null)
+                            return
+                        }
+                    }
+                }
+
+                val (reqUrl, rawResult) = if (session.isNativeMedia) {
+                    session.fetchNativeHlsResource(resource, range)
+                } else {
+                    session.fetch(resource, range)
+                }
                 // If WebView fetch() failed (status 0 = CORS / cross-origin / >16MB segment), retry natively via OkHttp.
                 val result = if (rawResult.status == 0) {
                     runCatching { session.fetchNativeFallback(reqUrl, range) }.getOrDefault(rawResult)
@@ -541,6 +908,12 @@ internal class BRFlixBrowserStream : Closeable {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         private const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+        private fun parseTotalFromContentRange(header: String?): Long? {
+            if (header.isNullOrBlank()) return null
+            return Regex("bytes\\s+\\d+-\\d+/(\\d+)").find(header)?.groupValues?.get(1)?.toLongOrNull()
+        }
+
         private fun retryAt(value: String, now: Long = System.currentTimeMillis()): Long {
             val seconds = value.trim().toLongOrNull()?.takeIf { it >= 0 }
             if (seconds != null) {
@@ -552,6 +925,7 @@ internal class BRFlixBrowserStream : Closeable {
                     .parse(value.trim())?.time?.coerceAtLeast(now)
             }.getOrNull() ?: (now + 60000)
         }
+
         private val TRANSPORT = """
             BRFlixTransport.onmessage=async e=>{
               let m;
@@ -594,6 +968,34 @@ internal class BRFlixBrowserStream : Closeable {
                 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
               }
             }else if(location.pathname.startsWith('/video/'))BRFlixTransport.postMessage('ready');
+        """.trimIndent()
+
+        private val NATIVE_TRANSPORT = """
+            BRFlixNativeTransport.onmessage=async e=>{
+              let m;
+              try {
+                m=JSON.parse(e.data);
+                if(m.action==='stop'){
+                  const stop=()=>{
+                    try{if(typeof window.videojs==='function')Object.values(window.videojs.getPlayers()).forEach(p=>{if(p)p.dispose();});}catch(_){}
+                    document.querySelectorAll('video,audio').forEach(v=>{v.pause();v.muted=true;v.removeAttribute('src');v.load();});
+                  };
+                  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(stop,0),{once:true});else stop();
+                  return;
+                }
+                const u=new URL(m.url);
+                if(u.protocol!=='https:'&&u.protocol!=='http:')throw Error('scheme');
+                const r=await fetch(u.href,{credentials:'same-origin',headers:m.range?{Range:m.range}:{}});
+                const a=new Uint8Array(await r.arrayBuffer());if(a.length>16777216)throw Error('size');
+                let s='';for(let i=0;i<a.length;i+=8192)s+=String.fromCharCode(...a.subarray(i,i+8192));
+                BRFlixNativeTransport.postMessage(JSON.stringify({id:m.id,status:r.status,url:r.url||u.href,body:btoa(s),type:r.headers.get('content-type'),range:r.headers.get('content-range'),retryAfter:r.headers.get('retry-after')}));
+              } catch(x) {
+                if(m&&m.id)BRFlixNativeTransport.postMessage(JSON.stringify({id:m.id,status:0,body:''}));
+              }
+            };
+            if(location.pathname.startsWith('/player/native/media/')){
+              BRFlixNativeTransport.postMessage('ready');
+            }
         """.trimIndent()
 
         private fun selectionScript(subbed: Boolean) = """
