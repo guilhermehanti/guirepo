@@ -288,6 +288,18 @@ class Kairou : MainAPI() {
                 src.isM3u8 -> ExtractorLinkType.M3U8
                 else -> ExtractorLinkType.VIDEO
             }
+            val linkReferer = src.referer ?: "$mainUrl/"
+            val linkHeaders = buildMap {
+                put("User-Agent", USER_AGENT)
+                put("Referer", linkReferer)
+                val origin = runCatching {
+                    val u = java.net.URI(linkReferer)
+                    "${u.scheme}://${u.authority}"
+                }.getOrNull()
+                if (!origin.isNullOrBlank() && !linkReferer.startsWith(mainUrl)) {
+                    put("Origin", origin)
+                }
+            }
             callback(
                 newExtractorLink(
                     source = name,
@@ -295,12 +307,9 @@ class Kairou : MainAPI() {
                     url = src.url,
                     type = linkType
                 ) {
-                    this.referer = "$mainUrl/"
+                    this.referer = linkReferer
                     this.quality = src.height
-                    this.headers = mapOf(
-                        "User-Agent" to USER_AGENT,
-                        "Referer" to "$mainUrl/"
-                    )
+                    this.headers = linkHeaders
                 }
             )
             emitted = true

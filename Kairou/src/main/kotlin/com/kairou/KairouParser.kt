@@ -1,6 +1,7 @@
 package com.kairou
 
 import org.json.JSONObject
+import java.net.URLDecoder
 
 internal data class KairouItem(
     val id: Int,
@@ -31,7 +32,8 @@ internal data class KairouSource(
     val url: String,
     val isM3u8: Boolean,
     val isDash: Boolean = false,
-    val height: Int
+    val height: Int,
+    val referer: String? = null
 )
 
 internal data class KairouExtractResult(
@@ -161,14 +163,35 @@ internal object KairouParser {
             for (i in 0 until arr.length()) {
                 val obj = arr.optJSONObject(i) ?: continue
                 val rawUrl = obj.optString("url").ifBlank { obj.optString("proxiedUrl") }.trim()
-                val fullUrl = resolveUrl(rawUrl, baseUrl)
-                if (fullUrl.isBlank() || !seenUrls.add(fullUrl)) continue
+                val resolvedUrl = resolveUrl(rawUrl, baseUrl)
+                if (resolvedUrl.isBlank()) continue
 
                 val provider = obj.optString("provider").trim().lowercase()
+                // kairou.space/api/proxy corrupts Solstice fMP4 segments because route.transcode.cfd
+                // serves binary fMP4 segments under a .m3u8 path (proxy rewrites binary bytes as text).
+                // Unwrap to the direct upstream URL + Referer so ExoPlayer receives clean fMP4 segments.
+                val unwrapped = if (provider == "solstice" || resolvedUrl.contains("m3u8-proxy.m3u8", ignoreCase = true)) {
+                    unwrapProxyUrl(resolvedUrl)
+                } else {
+                    null
+                }
+                val fullUrl = unwrapped?.first ?: resolvedUrl
+                val customReferer = unwrapped?.second
+                if (!seenUrls.add(fullUrl)) continue
+
                 val rawLabel = obj.optString("serverLabel").ifBlank {
                     obj.optString("title").ifBlank { obj.optString("provider", "Kairou ${i + 1}") }
                 }.trim()
-                val label = if ((provider == "zephyr" || provider == "vortex") &&
+                val hasOriginalAudio = run {
+                    val tracks = obj.optJSONArray("audioTracks") ?: return@run false
+                    (0 until tracks.length()).any { idx ->
+                        val t = tracks.optJSONObject(idx) ?: return@any false
+                        val lang = t.optString("language").lowercase()
+                        val tLabel = t.optString("label").lowercase()
+                        lang == "en" || tLabel.contains("original")
+                    }
+                }
+                val label = if ((provider == "zephyr" || provider == "vortex" || provider == "solstice" || hasOriginalAudio) &&
                     !rawLabel.contains("dub", ignoreCase = true) &&
                     !rawLabel.contains("leg", ignoreCase = true) &&
                     !rawLabel.contains("original", ignoreCase = true)
@@ -199,7 +222,8 @@ internal object KairouParser {
                         url = fullUrl,
                         isM3u8 = isM3u8,
                         isDash = isDash,
-                        height = height
+                        height = height,
+                        referer = customReferer
                     )
                 )
 
@@ -276,6 +300,27 @@ internal object KairouParser {
             bucket.add(KairouSubtitle(label = label, url = url))
         }
         return buckets.values.flatten().take(8)
+    }
+
+    fun unwrapProxyUrl(proxyUrl: String): Pair<String, String?>? {
+        val query = proxyUrl.substringAfter("?", "").ifBlank { return null }
+        var targetUrl: String? = null
+        var targetRef: String? = null
+        for (pair in query.split("&")) {
+            val idx = pair.indexOf('=')
+            if (idx <= 0) continue
+            val key = pair.substring(0, idx)
+            val value = try {
+                URLDecoder.decode(pair.substring(idx + 1), "UTF-8")
+            } catch (_: Exception) {
+                pair.substring(idx + 1)
+            }
+            when (key) {
+                "url" -> if (value.startsWith("http://") || value.startsWith("https://")) targetUrl = value
+                "referer" -> if (value.startsWith("http://") || value.startsWith("https://")) targetRef = value
+            }
+        }
+        return targetUrl?.let { it to targetRef }
     }
 
     private fun inferHeight(text: String): Int {

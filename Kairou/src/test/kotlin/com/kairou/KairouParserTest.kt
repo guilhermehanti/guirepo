@@ -135,4 +135,30 @@ class KairouParserTest {
         assertEquals("Português", subs[1].label)
         assertEquals("Inglês", subs[2].label)
     }
+
+    @Test
+    fun parseExtractResponse_unwrapsSolsticeProxyAndTagsOriginal() {
+        val json = """
+            {
+              "ok": true,
+              "sources": [
+                {
+                  "provider": "solstice",
+                  "serverLabel": "Solstice (4K)",
+                  "url": "/api/proxy?url=https%3A%2F%2Froute.transcode.cfd%2Fm3u8-proxy.m3u8%3Fdata%3Dabc123&referer=https%3A%2F%2Fatlantic.bz%2F",
+                  "kind": "hls",
+                  "height": 2160,
+                  "audioTracks": [{"label": "Original", "language": "en"}]
+                }
+              ]
+            }
+        """.trimIndent()
+        val res = KairouParser.parseExtractResponse(json, "https://kairou.space")
+        assertEquals(1, res.sources.size)
+        assertEquals("Solstice (4K) · Legendado (Original)", res.sources[0].label)
+        assertEquals("https://route.transcode.cfd/m3u8-proxy.m3u8?data=abc123", res.sources[0].url)
+        assertEquals("https://atlantic.bz/", res.sources[0].referer)
+        assertTrue(res.sources[0].isM3u8)
+        assertEquals(2160, res.sources[0].height)
+    }
 }
