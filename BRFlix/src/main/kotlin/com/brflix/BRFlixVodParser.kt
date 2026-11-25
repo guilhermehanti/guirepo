@@ -88,6 +88,16 @@ internal object BRFlixVodParser {
         return trimmed.startsWith("{")
     }
 
+    /**
+     * Some direct MP4 hosts (e.g. Most Wanted via megafonte.site -> *.genovevo.live) return
+     * HTTP 206 with Content-Length: 1 (bytes 0-0/total) when ExoPlayer omits the Range header
+     * on initial open, causing immediate EOF. Routing through the local Range proxy fixes it.
+     */
+    fun needsRangeProxy(url: String): Boolean {
+        val lower = url.lowercase()
+        return lower.contains("megafonte.site") || lower.contains("genovevo.live")
+    }
+
     fun mapClickhostTvEpisode(tmdbId: Int, season: Int, episode: Int): Pair<Int, Int> {
         if (tmdbId == 37854) {
             return when {

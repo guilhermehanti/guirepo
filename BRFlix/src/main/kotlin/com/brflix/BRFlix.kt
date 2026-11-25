@@ -300,16 +300,22 @@ class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStrea
             if (!emittedUrls.add(stream.url)) return
             val finalHeaders = stream.headers.toMutableMap()
             finalHeaders.putIfAbsent("User-Agent", USER_AGENT)
+            val useRangeProxy = !isCasting && !stream.isHls && BRFlixVodParser.needsRangeProxy(stream.url)
+            val playbackUrl = if (useRangeProxy) {
+                browserStreams.registerDirect(stream.url, finalHeaders)
+            } else {
+                stream.url
+            }
             callback(
                 newExtractorLink(
                     source = name,
                     name = stream.label,
-                    url = stream.url,
+                    url = playbackUrl,
                     type = if (stream.isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ) {
-                    this.referer = stream.referer
+                    this.referer = if (useRangeProxy) "" else stream.referer
                     this.quality = stream.quality
-                    this.headers = finalHeaders
+                    this.headers = if (useRangeProxy) emptyMap() else finalHeaders
                 }
             )
         }

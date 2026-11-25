@@ -187,4 +187,12 @@ class BRFlixVodParserTest {
         assertTrue(streams.any { it.label.contains("Legendado") })
         assertEquals(6, streams.size) // 5 dubbed + 1 subbed
     }
+
+    @Test
+    fun needsRangeProxy_matchesMostWantedHostsAndSkipsNormalCdn() {
+        assertTrue(BRFlixVodParser.needsRangeProxy("https://embed.megafonte.site/midia/speed-4/2791440.mp4"))
+        assertTrue(BRFlixVodParser.needsRangeProxy("https://cpo.genovevo.live/vauth/2791440.mp4?token=abc"))
+        assertFalse(BRFlixVodParser.needsRangeProxy("https://hub.fenixhub.online/r/hf_xyz"))
+        assertFalse(BRFlixVodParser.needsRangeProxy("https://cdn.vdcdpstop.lat/series/play/123.mp4"))
+    }
 }
