@@ -157,4 +157,34 @@ class BRFlixVodParserTest {
         assertFalse(BRFlixVodParser.looksLikeJsonObject("<!DOCTYPE html><html>451</html>"))
         assertTrue(BRFlixVodParser.looksLikeJsonObject("{\"id\": 969681}"))
     }
+
+    @Test
+    fun parseSubtitlesList_prioritizesPtBrAndParsesUrls() {
+        val json = """
+            {
+              "ok": true,
+              "subtitles": [
+                {"id": "1", "lang": "eng", "label": "Inglês", "url": "https://subs5.strem.io/eng"},
+                {"id": "2", "lang": "pob", "label": "Português (Brasil)", "url": "https://subs5.strem.io/pob"}
+              ]
+            }
+        """.trimIndent()
+
+        val subs = BRFlixVodParser.parseSubtitlesList(json, "https://brflix.lat")
+        assertEquals(2, subs.size)
+        assertEquals("Português (Brasil)", subs[0].label)
+        assertEquals("https://subs5.strem.io/pob", subs[0].url)
+    }
+
+    @Test
+    fun parseFenixFlixStreams_keepsLegendadoEvenWhenManyDubladoExist() {
+        val items = (1..7).map { i ->
+            """{"name":"FenixFlix 1080p","title":"Filme\nDublado\nHost$i","url":"https://ex.com/dub$i.mp4"}"""
+        } + """{"name":"FenixFlix 1080p","title":"Filme\nLegendado\nSubHost","url":"https://ex.com/sub1.mp4"}"""
+        val json = """{"streams":[${items.joinToString(",")}]}"""
+
+        val streams = BRFlixVodParser.parseFenixFlixStreams(json)
+        assertTrue(streams.any { it.label.contains("Legendado") })
+        assertEquals(6, streams.size) // 5 dubbed + 1 subbed
+    }
 }

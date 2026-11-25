@@ -268,6 +268,13 @@ class BRFlix : MainAPI() {
         val imdbId = resolveImdbId(type, idStr, rawImdb)
 
         val emittedUrls = ConcurrentHashMap.newKeySet<String>()
+        val emittedSubs = ConcurrentHashMap.newKeySet<String>()
+
+        suspend fun emitSubtitle(sub: BrFlixSubtitle) {
+            if (sub.url.isNotBlank() && emittedSubs.add(sub.url)) {
+                subtitleCallback(newSubtitleFile(sub.label, sub.url))
+            }
+        }
 
         suspend fun emitStream(stream: BrFlixResolvedStream) {
             if (!emittedUrls.add(stream.url)) return
@@ -287,9 +294,52 @@ class BRFlix : MainAPI() {
             )
         }
 
-        // Run all 3 BRFlix providers in parallel: FenixFlix (fast 4K/1080p MP4), Zeus-Resolve, and Clickhost
-        listOf("fenix", "zeus", "clickhost").amap { provider ->
+        val queryBase = if (type == "movie") {
+            "mediaType=movie&tmdbId=$tmdbId" + if (imdbId.startsWith("tt")) "&imdbId=$imdbId" else ""
+        } else {
+            "mediaType=tv&tmdbId=$tmdbId&season=$season&episode=$episode" +
+                if (imdbId.startsWith("tt")) "&imdbId=$imdbId" else ""
+        }
+
+        suspend fun fetchAndEmitBackendResolve(endpointPath: String) {
+            try {
+                val resp = app.get(
+                    "$mainUrl$endpointPath",
+                    headers = defaultHeaders() + ("X-Brflix-Enc" to "1"),
+                    timeout = 10L
+                )
+                if (resp.code in 200..299 && BRFlixVodParser.looksLikeJsonObject(resp.text)) {
+                    val parsed = BRFlixVodParser.parseZeusResponse(resp.text, mainUrl)
+                    parsed.subtitles.forEach { emitSubtitle(it) }
+                    parsed.streams.take(6).amap { st ->
+                        if (isExternalStreamReachable(st.url, st.headers)) {
+                            emitStream(st)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore failing backend resolver
+            }
+        }
+
+        // Run all BRFlix sources + subtitles in parallel (both Dublado and Legendado!)
+        listOf("subtitles", "fenix", "zeus", "best_dub", "best_sub", "clickhost").amap { provider ->
             when (provider) {
+                "subtitles" -> {
+                    try {
+                        val subResp = app.get(
+                            "$mainUrl/api/subtitles/list?$queryBase",
+                            headers = defaultHeaders(),
+                            timeout = 8L
+                        )
+                        if (subResp.code in 200..299 && BRFlixVodParser.looksLikeJsonObject(subResp.text)) {
+                            BRFlixVodParser.parseSubtitlesList(subResp.text, mainUrl).forEach { emitSubtitle(it) }
+                        }
+                    } catch (_: Exception) {
+                        // Ignore subtitle lookup failure
+                    }
+                }
+
                 "fenix" -> {
                     if (imdbId.startsWith("tt")) {
                         try {
@@ -316,35 +366,9 @@ class BRFlix : MainAPI() {
                     }
                 }
 
-                "zeus" -> {
-                    try {
-                        val zeusUrl = if (type == "movie") {
-                            "$mainUrl/zeus-resolve?mediaType=movie&tmdbId=$tmdbId" +
-                                if (imdbId.startsWith("tt")) "&imdbId=$imdbId" else ""
-                        } else {
-                            "$mainUrl/zeus-resolve?mediaType=tv&tmdbId=$tmdbId&season=$season&episode=$episode" +
-                                if (imdbId.startsWith("tt")) "&imdbId=$imdbId" else ""
-                        }
-                        val resp = app.get(
-                            zeusUrl,
-                            headers = defaultHeaders() + ("X-Brflix-Enc" to "1"),
-                            timeout = 10L
-                        )
-                        if (resp.code in 200..299 && BRFlixVodParser.looksLikeJsonObject(resp.text)) {
-                            val parsed = BRFlixVodParser.parseZeusResponse(resp.text, mainUrl)
-                            for (sub in parsed.subtitles) {
-                                subtitleCallback(newSubtitleFile(sub.label, sub.url))
-                            }
-                            parsed.streams.take(4).amap { st ->
-                                if (isExternalStreamReachable(st.url, st.headers)) {
-                                    emitStream(st)
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {
-                        // Ignore Zeus errors
-                    }
-                }
+                "zeus" -> fetchAndEmitBackendResolve("/zeus-resolve?$queryBase")
+                "best_dub" -> fetchAndEmitBackendResolve("/best-stream-resolve?$queryBase&hq=0&dubbed=1")
+                "best_sub" -> fetchAndEmitBackendResolve("/best-stream-resolve?$queryBase&hq=0&dubbed=0")
 
                 "clickhost" -> {
                     try {

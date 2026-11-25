@@ -370,7 +370,10 @@ internal object BRFlixVodParser {
                 ?: 1080
             val dubbed = obj.optBoolean("dubbed", false)
             val audioLabel = if (dubbed) "Dublado" else "Legendado"
-            val label = "BRFlix • Ultra HD (${quality}p $audioLabel)"
+            val providerName = obj.optString("provider").trim()
+                .removePrefix("BRFLIX ").removePrefix("BRFlix ")
+                .ifBlank { "Ultra HD" }
+            val label = "BRFlix • $providerName (${quality}p $audioLabel)"
 
             val hdrs = mutableMapOf<String, String>()
             val hdrObj = obj.optJSONObject("headers")
@@ -483,12 +486,49 @@ internal object BRFlixVodParser {
             )
         }
 
-        // Prioritize Dublado/Dual Áudio + higher resolution first, cap at 8 candidates
-        return streams.sortedWith(
-            compareByDescending<BrFlixResolvedStream> {
-                it.label.contains("Dublado", ignoreCase = true) || it.label.contains("Dual", ignoreCase = true)
-            }.thenByDescending { it.quality }
-        ).take(8)
+        // Keep both Dublado/Dual and Legendado/Original streams (never truncate Legendado away)
+        val (dubbedList, subbedList) = streams.partition {
+            it.label.contains("Dublado", ignoreCase = true) || it.label.contains("Dual", ignoreCase = true)
+        }
+        val topDub = dubbedList.sortedByDescending { it.quality }.take(5)
+        val topSub = subbedList.sortedByDescending { it.quality }.take(4)
+        return topDub + topSub
+    }
+
+    fun parseSubtitlesList(jsonText: String, baseUrl: String): List<BrFlixSubtitle> {
+        val root = try {
+            JSONObject(jsonText)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        if (!root.optBoolean("ok", true)) return emptyList()
+        val arr = root.optJSONArray("subtitles") ?: return emptyList()
+        val subs = mutableListOf<BrFlixSubtitle>()
+        val seen = mutableSetOf<String>()
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val url = resolveUrl(obj.optString("url"), baseUrl)
+            if (url.isBlank() || !seen.add(url)) continue
+            val label = obj.optString("label").trim().ifBlank {
+                when (obj.optString("lang").trim().lowercase()) {
+                    "pob" -> "Português (Brasil)"
+                    "por" -> "Português (PT)"
+                    "eng" -> "Inglês"
+                    "spa" -> "Espanhol"
+                    else -> "Legenda ${i + 1}"
+                }
+            }
+            subs.add(BrFlixSubtitle(label = label, url = url))
+        }
+        // Put Portuguese (BR) / Portuguese (PT) first
+        return subs.sortedBy {
+            val l = it.label.lowercase()
+            when {
+                l.contains("brasil") || l.contains("pt-br") -> 0
+                l.contains("portugu") -> 1
+                else -> 2
+            }
+        }
     }
 
     private fun inferQuality(text: String): Int {
