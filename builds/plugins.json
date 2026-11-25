@@ -170,10 +170,10 @@
     },
     {
         "iconUrl": "https://kairou.space/apple-touch-icon.png",
-        "fileHash": "sha256-f7d9b9fe5f0e580b5af9c93f94308893f9f39f034ce4084d17d1eb881f665891",
+        "fileHash": "sha256-51c9fbb45a72fd36723967917bef68480fcd4913e0ca22fff7d18a472d2007c9",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 29941,
+        "fileSize": 31973,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -184,7 +184,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "Kairou",
         "description": "Filmes, S\u00e9ries e Animes em 4K/HD Dublados e Legendados no Kairou (sem Cloudflare)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/Kairou.cs3",
