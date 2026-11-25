@@ -211,22 +211,23 @@
         "name": "NoveFlix"
     },
     {
-        "iconUrl": "https://www.pobreflixtvfree.net/assets/img/favicon.png",
-        "fileHash": "sha256-d2f41e99e6bd11c067d3c1c147f5028f385dacad896e6326e2789b90ac2b8ed2",
+        "iconUrl": "https://www.pobreflixtvfilmes.com/assets/img/favicon.png",
+        "fileHash": "sha256-60c6ece2a05f1f92fe9fe514f37b75a287bd90f80c97ffbc4529c77b63cca7f5",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 19149,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 138112,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "lawlietbr",
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Movies",
             "Series",
             "Cartoon"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "PobreFlixTV",
         "description": "Filmes, S\u00e9ries e Anima\u00e7\u00f5es Dublados e Legendados em HD no PobreFlixTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/PobreFlixTV.cs3",
