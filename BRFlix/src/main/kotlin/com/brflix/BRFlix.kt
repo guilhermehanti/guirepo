@@ -281,20 +281,10 @@ class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStrea
                     "/serie/$seriesId/$season/$episode"
                 }
                 listOf(false, true).forEach { subbed ->
-                    val label = if (subbed) "Legendado" else if (type == "tv") "Dublado (HLS)" else "Dublado"
-                    callback(newExtractorLink(name, "$provider • $label",
+                    callback(newExtractorLink(name, "$provider • ${if (subbed) "Legendado" else "Dublado"}",
                         browserStreams.register(provider, "$origin$path", subbed), ExtractorLinkType.M3U8) {
                         quality = Qualities.Unknown.value
                     })
-                    // For series Dublado, some titles (e.g. older cartoons/series) use SuperFlix/WarezCDN's
-                    // native MP4 player (/player/native/media-source/) instead of HLS. Registering the MP4
-                    // source right after HLS lets CloudStream reuse the already-verified session automatically!
-                    if (!subbed && type == "tv") {
-                        callback(newExtractorLink(name, "$provider • Dublado (MP4)",
-                            browserStreams.register(provider, "$origin$path", false, mp4 = true), ExtractorLinkType.VIDEO) {
-                            quality = Qualities.Unknown.value
-                        })
-                    }
                 }
             }
         }
