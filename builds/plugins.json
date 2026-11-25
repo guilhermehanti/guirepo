@@ -86,10 +86,10 @@
     },
     {
         "iconUrl": "https://cineagora.club/templates/cineagora/images/touch-icon-180x180.png",
-        "fileHash": "sha256-8ed167c9c789c2b25351fa87be07469adbda954bdd0629842ec7e28ce3e6fd6d",
+        "fileHash": "sha256-aed4cedf0e589f20d6ce6931eaf0a4d25e367e40c0fa46c44b5503100763b5e8",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 62498,
+        "fileSize": 62659,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -100,7 +100,7 @@
             "Series",
             "Animes"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "CineAgora",
         "description": "Assista filmes e s\u00e9ries online gr\u00e1tis em HD no CineAgora",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/CineAgora.cs3",
@@ -170,10 +170,10 @@
     },
     {
         "iconUrl": "https://kairou.space/apple-touch-icon.png",
-        "fileHash": "sha256-52bdd538e82a80d4f8816a6db350f33af519a86e8d23f5a06322c2bb48987920",
+        "fileHash": "sha256-f7d9b9fe5f0e580b5af9c93f94308893f9f39f034ce4084d17d1eb881f665891",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 28909,
+        "fileSize": 29941,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -184,7 +184,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 3,
+        "version": 4,
         "internalName": "Kairou",
         "description": "Filmes, S\u00e9ries e Animes em 4K/HD Dublados e Legendados no Kairou (sem Cloudflare)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/Kairou.cs3",
@@ -338,10 +338,10 @@
     },
     {
         "iconUrl": "https://www.ultracinetv.lat/wp-content/uploads/2024/07/cropped-favicon-300x300.png",
-        "fileHash": "sha256-e6485d4f4f3929beaf4e91a61e4622118c4c14c4ef7d04a576baa6b0ab6dbca5",
+        "fileHash": "sha256-2abe53a0c9129062c770188d9cb4de6c53b311ce453f4ee1a5740754372f1715",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 46378,
+        "fileSize": 49004,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -351,7 +351,7 @@
             "Movies",
             "Series"
         ],
-        "version": 6,
+        "version": 7,
         "internalName": "UltraCineTV",
         "description": "Filmes e S\u00e9ries Dublados e Legendados em HD no UltraCineTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/UltraCineTV.cs3",
