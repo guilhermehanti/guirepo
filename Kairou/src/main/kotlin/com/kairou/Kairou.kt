@@ -99,8 +99,9 @@ class Kairou : MainAPI() {
             val runtime = obj.optInt("runtime", 0).takeIf { it > 0 }
             val plot = obj.optString("overview").trim().ifBlank { null }
             val tags = parseGenres(obj)
+            val imdbId = obj.optString("imdb_id").trim().takeIf { it.startsWith("tt") }.orEmpty()
 
-            return newMovieLoadResponse(title, clean, TvType.Movie, "movie|$id") {
+            return newMovieLoadResponse(title, clean, TvType.Movie, "movie|$id|$imdbId") {
                 this.posterUrl = poster
                 this.backgroundPosterUrl = backdrop ?: poster
                 this.year = year
@@ -110,7 +111,10 @@ class Kairou : MainAPI() {
             }
         }
 
-        val detailJson = app.get("$mainUrl/api/tmdb/tv/$id?language=pt-BR", headers = defaultHeaders()).text
+        val detailJson = app.get(
+            "$mainUrl/api/tmdb/tv/$id?language=pt-BR&append_to_response=external_ids",
+            headers = defaultHeaders()
+        ).text
         val obj = JSONObject(detailJson)
         val title = obj.optString("name").ifBlank { obj.optString("original_name") }.trim()
         val poster = KairouParser.tmdbImage(obj.optString("poster_path"), "w500")
@@ -118,6 +122,14 @@ class Kairou : MainAPI() {
         val year = obj.optString("first_air_date").take(4).toIntOrNull()
         val plot = obj.optString("overview").trim().ifBlank { null }
         val tags = parseGenres(obj)
+        val imdbId = obj.optJSONObject("external_ids")?.optString("imdb_id")
+            ?.trim()?.takeIf { it.startsWith("tt") }.orEmpty()
+        val origLang = obj.optString("original_language").lowercase()
+        val hasAnimationGenre = (obj.optJSONArray("genres")?.let { gArr ->
+            (0 until gArr.length()).any { gArr.optJSONObject(it)?.optInt("id") == 16 }
+        } == true)
+        val isAnime = hasAnimationGenre && origLang == "ja"
+        val kindFlag = if (isAnime) "anime" else "tv"
 
         val seasonNumbers = mutableListOf<Int>()
         val seasonsArr = obj.optJSONArray("seasons")
@@ -147,7 +159,7 @@ class Kairou : MainAPI() {
             for (epList in fetched) {
                 for (ep in epList) {
                     allEpisodes.add(
-                        newEpisode("tv|$id|${ep.season}|${ep.episode}") {
+                        newEpisode("tv|$id|${ep.season}|${ep.episode}|$imdbId|$kindFlag") {
                             this.name = ep.name
                             this.season = ep.season
                             this.episode = ep.episode
@@ -159,7 +171,8 @@ class Kairou : MainAPI() {
             }
         }
 
-        return newTvSeriesLoadResponse(title, clean, TvType.TvSeries, allEpisodes) {
+        val tvType = if (isAnime) TvType.Anime else TvType.TvSeries
+        return newTvSeriesLoadResponse(title, clean, tvType, allEpisodes) {
             this.posterUrl = poster
             this.backgroundPosterUrl = backdrop ?: poster
             this.year = year
@@ -188,19 +201,59 @@ class Kairou : MainAPI() {
         val type = parts.getOrNull(0) ?: return false
         val id = parts.getOrNull(1) ?: return false
 
-        val extractUrl = if (type == "movie") {
-            "$mainUrl/api/extract?tmdbId=$id&type=movie"
+        val extractUrls = mutableListOf<String>()
+        val imdbId: String
+        val subEndpoint: String?
+
+        if (type == "movie") {
+            extractUrls.add("$mainUrl/api/extract?tmdbId=$id&type=movie")
+            imdbId = parts.getOrNull(2).orEmpty().trim()
+            subEndpoint = imdbId.takeIf { it.startsWith("tt") }
+                ?.let { "https://opensubtitles-v3.strem.io/subtitles/movie/$it.json" }
         } else {
             val s = parts.getOrNull(2) ?: "1"
             val e = parts.getOrNull(3) ?: "1"
-            "$mainUrl/api/extract?tmdbId=$id&type=tv&season=$s&episode=$e"
+            imdbId = parts.getOrNull(4).orEmpty().trim()
+            val isAnime = parts.getOrNull(5) == "anime"
+            val baseExtract = "$mainUrl/api/extract?tmdbId=$id&type=tv&season=$s&episode=$e"
+            extractUrls.add(baseExtract)
+            if (isAnime) {
+                // Unlocks both Aurora PT-BR Dub and Aurora PT-BR Leg on animes
+                extractUrls.add("$baseExtract&animeLang=sub")
+            }
+            subEndpoint = imdbId.takeIf { it.startsWith("tt") }
+                ?.let { "https://opensubtitles-v3.strem.io/subtitles/series/$it:$s:$e.json" }
         }
 
-        val jsonText = app.get(extractUrl, headers = defaultHeaders(), timeout = 30L).text
-        val extracted = KairouParser.parseExtractResponse(jsonText, mainUrl)
+        val results = extractUrls.amap { url ->
+            try {
+                val jsonText = app.get(url, headers = defaultHeaders(), timeout = 30L).text
+                KairouParser.parseExtractResponse(jsonText, mainUrl)
+            } catch (_: Exception) {
+                KairouExtractResult(emptyList(), emptyList())
+            }
+        }
+        val extracted = KairouParser.mergeExtractResults(results)
 
+        val seenSubUrls = mutableSetOf<String>()
         for (sub in extracted.subtitles) {
-            subtitleCallback(newSubtitleFile(sub.label, sub.url))
+            if (seenSubUrls.add(sub.url)) {
+                subtitleCallback(newSubtitleFile(sub.label, sub.url))
+            }
+        }
+
+        if (subEndpoint != null) {
+            try {
+                val subJson = app.get(subEndpoint, headers = defaultHeaders(), timeout = 10L).text
+                val externalSubs = KairouParser.parseOpenSubtitlesJson(subJson)
+                for (sub in externalSubs) {
+                    if (seenSubUrls.add(sub.url)) {
+                        subtitleCallback(newSubtitleFile(sub.label, sub.url))
+                    }
+                }
+            } catch (_: Exception) {
+                // External subtitles are best-effort
+            }
         }
 
         var emitted = false

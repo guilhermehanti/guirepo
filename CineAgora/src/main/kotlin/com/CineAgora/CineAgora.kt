@@ -647,44 +647,34 @@ class CineAgora : MainAPI() {
         }
     }
 
-    private suspend fun extractSeriesSlugFromPage(doc: org.jsoup.nodes.Document, baseUrl: String): String? {
+    private fun extractSeriesSlugsFromPage(doc: org.jsoup.nodes.Document): List<Pair<String, String>> {
+        val found = mutableListOf<Pair<String, String>>()
+        val seen = mutableSetOf<String>()
+        val tvPattern = Regex("""/tv/([^/?#"'\s]+)""")
+
         val dataLinkElements = doc.select("[data-link*='/tv/']")
-        
         for (element in dataLinkElements) {
             val dataLink = element.attr("data-link")
-            val tvPattern = Regex("""/tv/([^/?]+)""")
-            val tvMatch = tvPattern.find(dataLink)
-            if (tvMatch != null) {
-                return tvMatch.groupValues[1]
+            val tvMatch = tvPattern.find(dataLink) ?: continue
+            val slug = tvMatch.groupValues[1]
+            if (seen.add(slug)) {
+                val label = element.text().replace(Regex("""\s+"""), " ").trim()
+                found.add(label to slug)
             }
         }
-        
-        val tvButtons = doc.select("""
-            button[data-link*='/tv/'], 
-            span[data-link*='/tv/'], 
-            a[data-link*='/tv/'],
-            div[data-link*='/tv/']
-        """.trimIndent())
-        
-        for (element in tvButtons) {
-            val dataLink = element.attr("data-link")
-            val tvPattern = Regex("""/tv/([^/?]+)""")
-            val tvMatch = tvPattern.find(dataLink)
-            if (tvMatch != null) {
-                return tvMatch.groupValues[1]
+
+        if (found.isEmpty()) {
+            val html = doc.html()
+            val brplayerRegex = Regex("""watch\.br(?:player|stream)\.cc/tv/([^"'\s?&]+)""")
+            for (match in brplayerRegex.findAll(html)) {
+                val slug = match.groupValues[1]
+                if (seen.add(slug)) {
+                    found.add("" to slug)
+                }
             }
         }
-        
-        val html = doc.html()
-        val brplayerRegex = Regex("""watch\.brplayer\.cc/tv/([^"'\s?&]+)""")
-        val matches = brplayerRegex.findAll(html).toList()
-        
-        val firstMatch = matches.firstOrNull()
-        if (firstMatch != null) {
-            return firstMatch.groupValues[1]
-        }
-        
-        return null
+
+        return found
     }
 
     private suspend fun fetchEpisodesFromApi(seriesSlug: String): List<Episode> {
@@ -808,13 +798,48 @@ class CineAgora : MainAPI() {
     }
 
     private suspend fun extractEpisodes(doc: org.jsoup.nodes.Document, baseUrl: String): List<Episode> {
-        val seriesSlug = extractSeriesSlugFromPage(doc, baseUrl)
+        val seriesSlugs = extractSeriesSlugsFromPage(doc)
         
-        if (seriesSlug != null) {
-            val apiEpisodes = fetchEpisodesFromApi(seriesSlug)
-            
-            if (apiEpisodes.isNotEmpty()) {
-                return apiEpisodes.sortedWith(compareBy({ it.season }, { it.episode }))
+        if (seriesSlugs.isNotEmpty()) {
+            if (seriesSlugs.size == 1) {
+                val (label, slug) = seriesSlugs.first()
+                val apiEpisodes = fetchEpisodesFromApi(slug).map { ep ->
+                    if (label.isNotBlank()) {
+                        newEpisode("$label|${ep.data}") {
+                            this.name = ep.name
+                            this.season = ep.season
+                            this.episode = ep.episode
+                            this.description = ep.description
+                        }
+                    } else ep
+                }
+                if (apiEpisodes.isNotEmpty()) {
+                    return apiEpisodes.sortedWith(compareBy({ it.season }, { it.episode }))
+                }
+            } else {
+                // Multiple audio options (e.g. Dublado + Legendado): merge watch URLs per (season, episode)
+                val mergedByKey = linkedMapOf<Pair<Int, Int>, Pair<Episode, MutableList<String>>>()
+                for ((label, slug) in seriesSlugs) {
+                    val epList = fetchEpisodesFromApi(slug)
+                    for (ep in epList) {
+                        val key = (ep.season ?: 1) to (ep.episode ?: 1)
+                        val tagged = if (label.isNotBlank()) "$label|${ep.data}" else ep.data
+                        val entry = mergedByKey.getOrPut(key) { ep to mutableListOf() }
+                        if (!entry.second.contains(tagged)) {
+                            entry.second.add(tagged)
+                        }
+                    }
+                }
+                if (mergedByKey.isNotEmpty()) {
+                    return mergedByKey.values.map { (baseEp, urls) ->
+                        newEpisode(urls.joinToString("||")) {
+                            this.name = baseEp.name
+                            this.season = baseEp.season
+                            this.episode = baseEp.episode
+                            this.description = baseEp.description
+                        }
+                    }.sortedWith(compareBy({ it.season }, { it.episode }))
+                }
             }
         }
         
@@ -938,7 +963,8 @@ class CineAgora : MainAPI() {
         
         val recommendations = extractRecommendationsFromSite(doc)
         
-        val playerUrl = if (!isSerie) {
+        val hasMultipleButtons = doc.select("[data-link*='watch.brstream.cc'], [data-link*='watch.brplayer.cc']").isNotEmpty()
+        val playerUrl = if (!isSerie && !hasMultipleButtons) {
             findPlayerUrl(doc) ?: url
         } else {
             url
@@ -1062,7 +1088,7 @@ class CineAgora : MainAPI() {
             return false
         }
         
-        return CineAgoraExtractor.extractVideoLinks(data, name, callback)
+        return CineAgoraExtractor.extractVideoLinks(data, name, subtitleCallback, callback)
     }
 
     private data class TMDBInfo(

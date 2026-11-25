@@ -211,6 +211,63 @@ internal object KairouParser {
         return KairouExtractResult(sources = sources, subtitles = subtitles)
     }
 
+    fun mergeExtractResults(results: List<KairouExtractResult>): KairouExtractResult {
+        val sources = mutableListOf<KairouSource>()
+        val subtitles = mutableListOf<KairouSubtitle>()
+        val seenUrls = mutableSetOf<String>()
+        val seenSubs = mutableSetOf<String>()
+        for (res in results) {
+            for (src in res.sources) {
+                if (seenUrls.add(src.url)) sources.add(src)
+            }
+            for (sub in res.subtitles) {
+                if (seenSubs.add(sub.url)) subtitles.add(sub)
+            }
+        }
+        return KairouExtractResult(sources = sources, subtitles = subtitles)
+    }
+
+    fun parseOpenSubtitlesJson(jsonText: String): List<KairouSubtitle> {
+        val root = try {
+            JSONObject(jsonText)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val arr = root.optJSONArray("subtitles") ?: return emptyList()
+        val buckets = linkedMapOf<String, MutableList<KairouSubtitle>>(
+            "pob" to mutableListOf(),
+            "por" to mutableListOf(),
+            "eng" to mutableListOf(),
+            "spa" to mutableListOf()
+        )
+        val langLabels = mapOf(
+            "pob" to "Português (Brasil)",
+            "por" to "Português",
+            "eng" to "Inglês",
+            "spa" to "Espanhol"
+        )
+        val seenUrls = mutableSetOf<String>()
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val rawLang = obj.optString("lang").trim().lowercase()
+            val normLang = when (rawLang) {
+                "pob", "pt-br", "pt_br", "pb" -> "pob"
+                "por", "pt" -> "por"
+                "eng", "en" -> "eng"
+                "spa", "es" -> "spa"
+                else -> continue
+            }
+            val url = obj.optString("url").trim()
+            if (!url.startsWith("http") || !seenUrls.add(url)) continue
+            val bucket = buckets[normLang] ?: continue
+            if (bucket.size >= 3) continue
+            val baseLabel = langLabels[normLang] ?: normLang.uppercase()
+            val label = if (bucket.isEmpty()) baseLabel else "$baseLabel #${bucket.size + 1}"
+            bucket.add(KairouSubtitle(label = label, url = url))
+        }
+        return buckets.values.flatten().take(8)
+    }
+
     private fun inferHeight(text: String): Int {
         val lower = text.lowercase()
         return when {

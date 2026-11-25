@@ -93,4 +93,46 @@ class KairouParserTest {
         assertFalse(res.sources[0].isM3u8)
         assertEquals(480, res.sources[0].height)
     }
+
+    @Test
+    fun mergeExtractResults_deduplicatesAndKeepsBothDubAndLeg() {
+        val r1 = KairouExtractResult(
+            sources = listOf(
+                KairouSource("Aurora (720p) · PT-BR Dub", "https://kairou.space/dub.mp4", false, false, 720),
+                KairouSource("Zephyr (480p)", "https://kairou.space/z.mpd", false, true, 480)
+            ),
+            subtitles = emptyList()
+        )
+        val r2 = KairouExtractResult(
+            sources = listOf(
+                KairouSource("Aurora (720p) · PT-BR Dub", "https://kairou.space/dub.mp4", false, false, 720),
+                KairouSource("Aurora (720p) · PT-BR Leg", "https://kairou.space/leg.mp4", false, false, 720)
+            ),
+            subtitles = listOf(KairouSubtitle("Português", "https://kairou.space/pt.vtt"))
+        )
+        val merged = KairouParser.mergeExtractResults(listOf(r1, r2))
+        assertEquals(3, merged.sources.size)
+        assertEquals("Aurora (720p) · PT-BR Leg", merged.sources[2].label)
+        assertEquals(1, merged.subtitles.size)
+    }
+
+    @Test
+    fun parseOpenSubtitlesJson_prioritizesBrazilianPortuguese() {
+        val json = """
+            {
+              "subtitles": [
+                {"lang": "eng", "url": "https://subs5.strem.io/en.srt"},
+                {"lang": "fre", "url": "https://subs5.strem.io/fr.srt"},
+                {"lang": "pob", "url": "https://subs5.strem.io/ptbr.srt"},
+                {"lang": "por", "url": "https://subs5.strem.io/pt.srt"}
+              ]
+            }
+        """.trimIndent()
+        val subs = KairouParser.parseOpenSubtitlesJson(json)
+        assertEquals(3, subs.size)
+        assertEquals("Português (Brasil)", subs[0].label)
+        assertEquals("https://subs5.strem.io/ptbr.srt", subs[0].url)
+        assertEquals("Português", subs[1].label)
+        assertEquals("Inglês", subs[2].label)
+    }
 }

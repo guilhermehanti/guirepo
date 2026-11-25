@@ -214,6 +214,7 @@ class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() 
     private suspend fun extractVidmoly(
         embedUrl: String,
         label: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         return try {
@@ -226,6 +227,15 @@ class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() 
                 .toList()
 
             if (m3u8Urls.isEmpty()) return false
+
+            Regex("""https?://[^"'\s<>\\]+\.(?:vtt|srt)[^"'\s<>\\]*""", RegexOption.IGNORE_CASE)
+                .findAll(html)
+                .map { it.value.trim() }
+                .filter { !it.contains("thumb", ignoreCase = true) }
+                .distinct()
+                .forEach { subUrl ->
+                    subtitleCallback(newSubtitleFile("Português", subUrl))
+                }
 
             m3u8Urls.forEach { m3u8 ->
                 callback(
@@ -255,10 +265,17 @@ class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() 
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val doc = try {
-            app.get(data, headers = defaultHeaders()).document
+        val pageResp = try {
+            app.get(data, headers = defaultHeaders())
         } catch (_: Exception) {
             return false
+        }
+        val doc = pageResp.document
+        val pageOrigin = try {
+            val uri = java.net.URI(pageResp.url)
+            "${uri.scheme}://${uri.authority}"
+        } catch (_: Exception) {
+            mainUrl
         }
 
         val options = doc.select(".dooplay_player_option")
@@ -276,14 +293,14 @@ class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() 
 
             try {
                 val ajaxText = app.post(
-                    url = "$mainUrl/wp-admin/admin-ajax.php",
+                    url = "$pageOrigin/wp-admin/admin-ajax.php",
                     data = mapOf(
                         "action" to "doo_player_ajax",
                         "post" to postId,
                         "nume" to nume,
                         "type" to dtype
                     ),
-                    referer = data,
+                    referer = pageResp.url,
                     headers = mapOf(
                         "User-Agent" to USER_AGENT,
                         "X-Requested-With" to "XMLHttpRequest",
@@ -296,20 +313,20 @@ class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() 
                     .trim()
                 if (embedUrl.isBlank() || !embedUrl.startsWith("http")) continue
                 if (embedUrl.contains("abyssplayer", ignoreCase = true)) {
-                    if (!isCasting && AbyssResolver(proxy).resolve(embedUrl, data, optTitle.ifBlank { "Player $nume" }, callback)) {
+                    if (!isCasting && AbyssResolver(proxy).resolve(embedUrl, pageResp.url, optTitle.ifBlank { "Player $nume" }, callback)) {
                         foundAny = true
                     }
                     continue
                 }
 
                 if (embedUrl.contains("vidmoly", ignoreCase = true)) {
-                    if (extractVidmoly(embedUrl, label, callback)) {
+                    if (extractVidmoly(embedUrl, label, subtitleCallback, callback)) {
                         foundAny = true
                         continue
                     }
                 }
 
-                if (loadExtractor(embedUrl, data, subtitleCallback, callback)) {
+                if (loadExtractor(embedUrl, pageResp.url, subtitleCallback, callback)) {
                     foundAny = true
                 }
             } catch (_: Exception) {}

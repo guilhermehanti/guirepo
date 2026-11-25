@@ -81,6 +81,10 @@ class UltraCineTV internal constructor(private val proxy: AbyssProxy) : MainAPI(
         var found = false
         for (button in doc.select("[data-source]")) {
             val source = button.attr("data-source")
+            val rawSub = button.attr("data-subtitles").trim()
+            if (rawSub.startsWith("http")) {
+                subtitleCallback(newSubtitleFile("Português", rawSub))
+            }
             val host = runCatching { URI(source).host }.getOrNull().orEmpty()
             try {
                 val resolved = when {

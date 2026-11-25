@@ -1,11 +1,14 @@
 package com.CineAgora
 
+import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import org.jsoup.Jsoup
 
 object CineAgoraExtractor {
     private const val BASE_PLAYER = "https://watch.brstream.cc"
@@ -15,20 +18,50 @@ object CineAgoraExtractor {
     suspend fun extractVideoLinks(
         url: String,
         name: String,
+        subtitleCallback: (SubtitleFile) -> Unit = {},
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        // Support multi-audio entries encoded as "Dublado|url1||Legendado|url2"
+        if (url.contains("||") || (url.contains("|http") && !url.startsWith("http"))) {
+            var foundAny = false
+            val entries = url.split("||").map { it.trim() }.filter { it.isNotBlank() }
+            for (entry in entries) {
+                val pipeIdx = entry.indexOf("|http")
+                val (entryName, entryUrl) = if (pipeIdx > 0) {
+                    val lbl = entry.substring(0, pipeIdx).trim()
+                    val linkLabel = if (lbl.isNotBlank()) "$PRIMARY_SOURCE - $lbl" else name
+                    linkLabel to entry.substring(pipeIdx + 1).trim()
+                } else {
+                    name to entry
+                }
+                if (extractSingleUrl(entryUrl, entryName, subtitleCallback, callback)) {
+                    foundAny = true
+                }
+            }
+            return foundAny
+        }
+
+        return extractSingleUrl(url, name, subtitleCallback, callback)
+    }
+
+    private suspend fun extractSingleUrl(
+        url: String,
+        name: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         return when {
-            url.contains("watch.brstream.cc/watch?v=") -> {
-                extractHlsFromWatchPage(url, name, callback)
+            url.contains("watch.brstream.cc/watch?v=") || url.contains("watch.brplayer.cc/watch?v=") -> {
+                extractHlsFromWatchPage(url, name, subtitleCallback, callback)
             }
-            url.contains("watch.brstream.cc/watch/") && !url.contains("?v=") -> {
-                extractHlsFromWatchPage(url, name, callback)
+            (url.contains("watch.brstream.cc/watch/") || url.contains("watch.brplayer.cc/watch/")) && !url.contains("?v=") -> {
+                extractHlsFromWatchPage(url, name, subtitleCallback, callback)
             }
             url.contains("cineagora.club") -> {
-                extractFromCineAgoraPage(url, name, callback)
+                extractFromCineAgoraPage(url, name, subtitleCallback, callback)
             }
             else -> {
-                extractHlsFromWatchPage(url, name, callback)
+                extractHlsFromWatchPage(url, name, subtitleCallback, callback)
             }
         }
     }
@@ -36,138 +69,72 @@ object CineAgoraExtractor {
     private suspend fun extractFromCineAgoraPage(
         cineAgoraUrl: String,
         name: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         try {
             val html = app.get(cineAgoraUrl, referer = REFERER_CINEAGORA).text
+            val doc = Jsoup.parse(html, cineAgoraUrl)
 
-            val moviePatterns = listOf(
-                """https://watch\.brstream\.cc/watch\?v=([A-Z0-9]+)""",
-                """<iframe[^>]*src=["'](https://watch\.brstream\.cc/watch\?v=[^"']+)["']""",
-                """data-link=["'](https://watch\.brstream\.cc/watch\?v=[^"']+)["']""",
-                """["'](/watch\?v=([A-Z0-9]+))["']"""
-            )
-            
-            val seriesPatterns = listOf(
-                """https://watch\.brstream\.cc/watch/([A-Z0-9]+)""",
-                """<iframe[^>]*src=["'](https://watch\.brstream\.cc/watch/[^"']+)["']""",
-                """data-link=["'](https://watch\.brstream\.cc/watch/[^"']+)["']""",
-                """["'](/watch/([A-Z0-9]+))["']"""
-            )
-            
-            val tvPatterns = listOf(
-                """https://watch\.brstream\.cc/tv/([^"'\s?&]+)""",
-                """<iframe[^>]*src=["'](https://watch\.brstream\.cc/tv/[^"']+)["']""",
-                """data-link=["'](https://watch\.brstream\.cc/tv/[^"']+)["']"""
-            )
-
-            for (pattern in moviePatterns) {
-                val regex = Regex(pattern)
-                val matches = regex.findAll(html).toList()
-                
-                if (matches.isNotEmpty()) {
-                    for (match in matches) {
-                        val fullUrl = match.groupValues.getOrNull(1) ?: match.value
-                        var watchUrl = fullUrl
-                        
-                        if (watchUrl.startsWith("/")) {
-                            watchUrl = BASE_PLAYER + watchUrl
-                        }
-                        
-                        if (extractHlsFromWatchPage(watchUrl, name, callback)) {
-                            return true
-                        }
-                    }
+            // 1. Collect ALL player buttons with data-link (e.g. Dublado + Legendado) preserving labels
+            val labeledTargets = linkedMapOf<String, String>() // normalized watch/tv URL -> label
+            for (el in doc.select("[data-link]")) {
+                var rawLink = el.attr("data-link").trim()
+                if (rawLink.isBlank()) continue
+                if (rawLink.startsWith("/watch") || rawLink.startsWith("/tv/")) {
+                    rawLink = BASE_PLAYER + rawLink
                 }
-            }
-            
-            for (pattern in seriesPatterns) {
-                val regex = Regex(pattern)
-                val matches = regex.findAll(html).toList()
-                
-                if (matches.isNotEmpty()) {
-                    for (match in matches) {
-                        val fullUrl = match.groupValues.getOrNull(1) ?: match.value
-                        var watchUrl = fullUrl
-                        
-                        if (watchUrl.startsWith("/")) {
-                            watchUrl = BASE_PLAYER + watchUrl
-                        }
-                        
-                        if (!watchUrl.contains("?")) {
-                            watchUrl += "?ref=&d=null"
-                        }
-                        
-                        if (extractHlsFromWatchPage(watchUrl, name, callback)) {
-                            return true
-                        }
-                    }
-                }
-            }
-            
-            for (pattern in tvPatterns) {
-                val regex = Regex(pattern)
-                val matches = regex.findAll(html).toList()
-                
-                if (matches.isNotEmpty()) {
-                    for (match in matches) {
-                        val fullUrl = match.groupValues.getOrNull(1) ?: match.value
-                        var seriesUrl = fullUrl
-                        
-                        if (seriesUrl.startsWith("/")) {
-                            seriesUrl = BASE_PLAYER + seriesUrl
-                        }
-                        
-                        val videoSlug = extractVideoSlugFromSeriesPage(seriesUrl)
-                        if (videoSlug != null) {
-                            val watchUrl = "$BASE_PLAYER/watch/$videoSlug?ref=&d=null"
-                            
-                            if (extractHlsFromWatchPage(watchUrl, name, callback)) {
-                                return true
-                            }
-                        }
-                    }
+                if (!rawLink.contains("watch.brstream.cc") && !rawLink.contains("watch.brplayer.cc")) continue
+                val cleanLabel = el.text().replace(Regex("""\s+"""), " ").trim()
+                if (!labeledTargets.containsKey(rawLink)) {
+                    labeledTargets[rawLink] = cleanLabel
                 }
             }
 
-            val fallbackPattern = """https://watch\.brstream\.cc/(watch\?v=|watch/|tv/)([^"'\s<>?&]+)"""
-            val allMatches = Regex(fallbackPattern).findAll(html).toList()
-            
-            if (allMatches.isNotEmpty()) {
-                allMatches.forEach { match ->
-                    val pathType = match.groupValues[1]
-                    val playerUrl = match.value
-                    
-                    when {
-                        pathType.contains("watch?v=") -> {
-                            if (extractHlsFromWatchPage(playerUrl, name, callback)) {
-                                return true
-                            }
-                        }
-                        pathType.contains("watch/") && !pathType.contains("?v=") -> {
-                            val watchUrl = if (!playerUrl.contains("?")) {
-                                "$playerUrl?ref=&d=null"
-                            } else {
-                                playerUrl
-                            }
-                            if (extractHlsFromWatchPage(watchUrl, name, callback)) {
-                                return true
-                            }
-                        }
-                        pathType.contains("tv/") -> {
-                            val videoSlug = extractVideoSlugFromSeriesPage(playerUrl)
-                            if (videoSlug != null) {
-                                val watchUrl = "$BASE_PLAYER/watch/$videoSlug?ref=&d=null"
-                                if (extractHlsFromWatchPage(watchUrl, name, callback)) {
-                                    return true
-                                }
-                            }
-                        }
-                    }
+            // Also include any iframes pointing to watch.brstream.cc / watch.brplayer.cc
+            for (iframe in doc.select("iframe[src]")) {
+                var src = iframe.attr("src").trim()
+                if (src.startsWith("/watch") || src.startsWith("/tv/")) {
+                    src = BASE_PLAYER + src
+                }
+                if ((src.contains("watch.brstream.cc") || src.contains("watch.brplayer.cc")) && !labeledTargets.containsKey(src)) {
+                    labeledTargets[src] = ""
                 }
             }
 
-            return false
+            // Regex fallback in case links only appear inside inline scripts
+            val fallbackPattern = """https://watch\.br(?:stream|player)\.cc/(?:watch\?v=|watch/|tv/)[^"'\s<>]+"""
+            for (match in Regex(fallbackPattern).findAll(html)) {
+                val foundUrl = match.value.trim()
+                if (!labeledTargets.containsKey(foundUrl)) {
+                    labeledTargets[foundUrl] = ""
+                }
+            }
+
+            var foundAny = false
+            val processedWatchUrls = mutableSetOf<String>()
+
+            for ((rawTarget, rawLabel) in labeledTargets) {
+                val linkLabel = if (rawLabel.isNotBlank()) "$PRIMARY_SOURCE - $rawLabel" else name
+                val watchUrl = when {
+                    rawTarget.contains("/watch?v=") -> rawTarget
+                    rawTarget.contains("/watch/") -> {
+                        if (!rawTarget.contains("?")) "$rawTarget?ref=&d=null" else rawTarget
+                    }
+                    rawTarget.contains("/tv/") -> {
+                        val videoSlug = extractVideoSlugFromSeriesPage(rawTarget) ?: continue
+                        "$BASE_PLAYER/watch/$videoSlug?ref=&d=null"
+                    }
+                    else -> rawTarget
+                }
+
+                if (!processedWatchUrls.add(watchUrl)) continue
+                if (extractHlsFromWatchPage(watchUrl, linkLabel, subtitleCallback, callback)) {
+                    foundAny = true
+                }
+            }
+
+            return foundAny
         } catch (e: Exception) {
             e.printStackTrace()
             return false
@@ -206,6 +173,7 @@ object CineAgoraExtractor {
     private suspend fun extractHlsFromWatchPage(
         watchUrl: String,
         name: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         try {
@@ -223,6 +191,7 @@ object CineAgoraExtractor {
             )
             
             val html = app.get(watchUrl, headers = headers).text
+            emitSubtitlesFromHtml(html, subtitleCallback)
 
             val videoParams = extractVideoParams(html)
             if (videoParams != null) {
@@ -236,7 +205,7 @@ object CineAgoraExtractor {
 
                 try {
                     val allLinks = M3u8Helper.generateM3u8(
-                        source = PRIMARY_SOURCE,
+                        source = name,
                         streamUrl = masterUrl,
                         referer = watchUrl,
                         headers = hlsHeaders
@@ -250,7 +219,7 @@ object CineAgoraExtractor {
                     
                 } catch (e: Exception) {
                     val fallbackLink = newExtractorLink(
-                        source = PRIMARY_SOURCE,
+                        source = name,
                         name = name,
                         url = masterUrl,
                         type = ExtractorLinkType.M3U8
@@ -273,7 +242,7 @@ object CineAgoraExtractor {
                 )
 
                 val directLink = newExtractorLink(
-                    source = PRIMARY_SOURCE,
+                    source = name,
                     name = name,
                     url = m3u8Url,
                     type = ExtractorLinkType.M3U8
@@ -290,6 +259,25 @@ object CineAgoraExtractor {
             
         } catch (e: Exception) {
             return false
+        }
+    }
+
+    private suspend fun emitSubtitlesFromHtml(
+        html: String,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ) {
+        val unescaped = html.replace("\\/", "/")
+        val trackObjRegex = Regex("""\{[^{}]*"file"\s*:\s*"([^"]+\.(?:vtt|srt)[^"]*)"[^{}]*\}""", RegexOption.IGNORE_CASE)
+        val seen = mutableSetOf<String>()
+        for (match in trackObjRegex.findAll(unescaped)) {
+            val block = match.value
+            if (block.contains("thumbnails", ignoreCase = true)) continue
+            var subUrl = match.groupValues[1].trim()
+            if (subUrl.startsWith("/")) subUrl = BASE_PLAYER + subUrl
+            if (!subUrl.startsWith("http") || !seen.add(subUrl)) continue
+            val label = Regex(""""label"\s*:\s*"([^"]+)"""").find(block)?.groupValues?.get(1)?.trim()
+                ?.ifBlank { "Português" } ?: "Português"
+            subtitleCallback(newSubtitleFile(label, subUrl))
         }
     }
 
