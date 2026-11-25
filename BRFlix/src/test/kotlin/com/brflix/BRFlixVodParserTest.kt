@@ -1,6 +1,7 @@
 package com.brflix
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -69,19 +70,19 @@ class BRFlixVodParserTest {
         val validPlaylist = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXTINF:10.0,\n/embed/segment/abc\n"
         val validMaster = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000\nplaylist.m3u8\n"
 
-        assertEquals(false, BRFlixVodParser.isPlayableHlsManifest(emptyMegaVods))
+        assertFalse(BRFlixVodParser.isPlayableHlsManifest(emptyMegaVods))
         assertTrue(BRFlixVodParser.isPlayableHlsManifest(validPlaylist))
         assertTrue(BRFlixVodParser.isPlayableHlsManifest(validMaster))
     }
 
     @Test
-    fun classifyStreamHead_acceptsLargeMp4MkvAndRealHlsAndRejectsStubHlsAnd502() {
+    fun classifyStreamHead_acceptsMp4AndRealHlsAndRejectsMkvStubHlsAnd502() {
         assertEquals(
             BRFlixVodParser.ProbeVerdict.VIDEO,
             BRFlixVodParser.classifyStreamHead(200, "video/mp4", 3_945_430_301L, false, "https://embed-api.clickhost.xyz/embed/stream/1")
         )
         assertEquals(
-            BRFlixVodParser.ProbeVerdict.VIDEO,
+            BRFlixVodParser.ProbeVerdict.REJECT,
             BRFlixVodParser.classifyStreamHead(200, "video/x-matroska; charset=utf-8", 5_342_536_626L, false, "https://embed-api.clickhost.xyz/embed/stream/2")
         )
         assertEquals(
@@ -96,5 +97,64 @@ class BRFlixVodParserTest {
             BRFlixVodParser.ProbeVerdict.REJECT,
             BRFlixVodParser.classifyStreamHead(502, "text/html; charset=UTF-8", 6476L, false, "https://embed-api.clickhost.xyz/embed/stream/5")
         )
+    }
+
+    @Test
+    fun parseFenixFlixStreams_extractsAndPrioritizesDubbed4kAnd1080p() {
+        val json = """
+            {
+              "streams": [
+                {
+                  "name": "FenixFlix 720p",
+                  "title": "A Odisseia\nLegendado\nFenixHub",
+                  "url": "https://fenixflixstrream.duckdns.org/stream/1?hash=abc",
+                  "behaviorHints": {"filename": "720p"}
+                },
+                {
+                  "name": "FenixFlix 4K",
+                  "title": "A Odisseia\nDublado\nFiggs",
+                  "url": "https://hub.fenixhub.online/r/hf_xyz",
+                  "behaviorHints": {"filename": "4K"}
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val streams = BRFlixVodParser.parseFenixFlixStreams(json)
+        assertEquals(2, streams.size)
+        assertEquals(2160, streams[0].quality)
+        assertEquals("", streams[0].referer)
+        assertTrue(streams[0].label.contains("4K"))
+        assertTrue(streams[0].label.contains("Dublado"))
+    }
+
+    @Test
+    fun parseZeusResponse_parsesUnencryptedCandidatesAndMapsOnePieceEpisodes() {
+        val json = """
+            {
+              "ok": true,
+              "candidates": [
+                {
+                  "url": "/dynamic-proxy/nsrv.classotaku.app/file/classgg/750/ep01.mp4",
+                  "rawUrl": "https://nsrv.classotaku.app/file/classgg/750/ep01.mp4",
+                  "type": "mp4",
+                  "height": 720,
+                  "dubbed": true,
+                  "headers": {"User-Agent": "IPTVSmartersPro"}
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val res = BRFlixVodParser.parseZeusResponse(json, "https://brflix.lat")
+        assertEquals(1, res.streams.size)
+        assertEquals("https://nsrv.classotaku.app/file/classgg/750/ep01.mp4", res.streams[0].url)
+        assertEquals(720, res.streams[0].quality)
+        assertEquals("IPTVSmartersPro", res.streams[0].headers["User-Agent"])
+
+        assertEquals(21 to 10, BRFlixVodParser.mapClickhostTvEpisode(37854, 21, 901))
+        assertEquals(1 to 1, BRFlixVodParser.mapClickhostTvEpisode(37854, 1, 1))
+        assertFalse(BRFlixVodParser.looksLikeJsonObject("<!DOCTYPE html><html>451</html>"))
+        assertTrue(BRFlixVodParser.looksLikeJsonObject("{\"id\": 969681}"))
     }
 }
