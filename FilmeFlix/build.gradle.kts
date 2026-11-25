@@ -1,4 +1,4 @@
-version = 3
+version = 4
 
 cloudstream {
     description = "Filmes e Séries Dublados e Nacionais em HD no FilmeFlix (Vidmoly e Abyss)"
@@ -6,5 +6,5 @@ cloudstream {
     authors = listOf("lawlietbr")
     status = 1
     tvTypes = listOf("Movies", "Series", "Cartoon")
-    iconUrl = "https://filmeflix.space/favicon.ico"
+    iconUrl = "https://filmeflix.work/wp-content/uploads/2026/09/cropped-android-chrome-512x512-1-192x192.png"
 }

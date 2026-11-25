@@ -1,4 +1,4 @@
-version = 2
+version = 3
 
 cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")
@@ -7,7 +7,7 @@ cloudstream {
     authors = listOf("guilhermehanti")
     status = 1
     tvTypes = listOf("Cartoon", "TvSeries", "Anime", "Movie")
-    iconUrl = "https://redecanais.ro/templates/echo/img/favicon.ico"
+    iconUrl = "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/redecanais.png"
 }
 
 dependencies {

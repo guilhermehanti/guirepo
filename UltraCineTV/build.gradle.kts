@@ -1,4 +1,4 @@
-version = 5
+version = 6
 
 cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")
@@ -7,5 +7,5 @@ cloudstream {
     authors = listOf("guilhermehanti")
     status = 1
     tvTypes = listOf("Movies", "Series")
-    iconUrl = "https://www.ultracinetv.lat/favicon.ico"
+    iconUrl = "https://www.ultracinetv.lat/wp-content/uploads/2024/07/cropped-favicon-300x300.png"
 }

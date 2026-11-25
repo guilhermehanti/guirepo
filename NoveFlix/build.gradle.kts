@@ -1,4 +1,4 @@
-version = 2
+version = 3
 
 cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")
@@ -7,7 +7,7 @@ cloudstream {
     authors = listOf("guilhermehanti")
     status = 1
     tvTypes = listOf("TvSeries")
-    iconUrl = "https://noveflix.lol/apple-touch-icon.png"
+    iconUrl = "https://noveflix.lol/wp-content/uploads/2026/09/cropped-download-192x192.png"
 }
 
 dependencies {
