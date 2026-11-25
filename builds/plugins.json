@@ -44,10 +44,10 @@
     },
     {
         "iconUrl": "https://brflix.lat/favicon.png?v=2.3.2",
-        "fileHash": "sha256-3269aeee8d98a4a23239a5b10f73bf3bca8412c0d9d11daca4a07ca25a3cb6e9",
+        "fileHash": "sha256-6756c9c87fa2fe70de7c01fc09f2f715a42210f578c59b31712ff82da06633d7",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 159812,
+        "fileSize": 159684,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -58,7 +58,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 10,
+        "version": 11,
         "internalName": "BRFlix",
         "description": "Filmes, S\u00e9ries e Animes Dublados e Legendados em HD no BRFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlix.cs3",
@@ -212,10 +212,10 @@
     },
     {
         "iconUrl": "https://www.pobreflixtvfilmes.com/assets/img/favicon.png",
-        "fileHash": "sha256-60c6ece2a05f1f92fe9fe514f37b75a287bd90f80c97ffbc4529c77b63cca7f5",
+        "fileHash": "sha256-9225c7d3d005a6eb76e68a3838ab26e0d095d9fc19e23cf4a7c42f110348374a",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 138112,
+        "fileSize": 142238,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -227,7 +227,7 @@
             "Series",
             "Cartoon"
         ],
-        "version": 3,
+        "version": 4,
         "internalName": "PobreFlixTV",
         "description": "Filmes, S\u00e9ries e Anima\u00e7\u00f5es Dublados e Legendados em HD no PobreFlixTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/PobreFlixTV.cs3",
@@ -339,10 +339,10 @@
     },
     {
         "iconUrl": "https://www.ultracinetv.lat/wp-content/uploads/2024/07/cropped-favicon-300x300.png",
-        "fileHash": "sha256-2abe53a0c9129062c770188d9cb4de6c53b311ce453f4ee1a5740754372f1715",
+        "fileHash": "sha256-a1230fd81cd624a5691b62c1fc97382738615aecae9a1af9a4a4685215aac110",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 49004,
+        "fileSize": 162238,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -352,7 +352,7 @@
             "Movies",
             "Series"
         ],
-        "version": 7,
+        "version": 8,
         "internalName": "UltraCineTV",
         "description": "Filmes e S\u00e9ries Dublados e Legendados em HD no UltraCineTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/UltraCineTV.cs3",
