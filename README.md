@@ -50,7 +50,7 @@ No **NuvioTV**, Plugins (`.cs3`) e Addons (protocolo Stremio) funcionam em siste
 1. Abra **Definições → Addons → Instalar addon**.
 2. Cole a URL do manifesto do addon **GuiRepo TV & Esportes BR**:
    ```text
-   https://<URL-DO-WORKER-CLOUDFLARE>/manifest.json
+   https://guirepo-tv-addon.mgaengenhariapr.workers.dev/manifest.json
    ```
    *(Para uso local na sua rede Wi-Fi rodando `node server.mjs`, use `http://<IP-DO-PC>:7000/manifest.json`; no emulador MuMu, use `http://10.0.2.2:7000/manifest.json`.)*
 3. Clique em **Instalar**. O addon unifica automaticamente **BRFlix TV, EmbedTV, TV a Cabo, RedeCanais TV e Rei dos Embeds** em catálogos nativos de TV ao Vivo e Agenda Esportiva (com múltiplos sinais por canal).
