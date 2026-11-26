@@ -96,6 +96,20 @@ class DattebayoBR : MainAPI() {
         } ?: (null to null)
     }
 
+    private fun detectQuality(url: String, containerId: String? = null): String {
+        return when {
+            containerId == "jwContainer_2" -> "FULLHD"
+            containerId == "jwContainer_1" -> "HD"
+            containerId == "jwContainer_0" -> "SD"
+            url.contains("/fful/", ignoreCase = true) || url.contains("/zful/", ignoreCase = true) -> "FULLHD"
+            url.contains("/f222/", ignoreCase = true) || url.contains("/f333/", ignoreCase = true) ||
+            url.contains("/z222/", ignoreCase = true) || url.contains("/z333/", ignoreCase = true) -> "HD"
+            url.contains("/fiphoneb/", ignoreCase = true) || url.contains("/fiphonec/", ignoreCase = true) ||
+            url.contains("/ziphoneb/", ignoreCase = true) || url.contains("/ziphonec/", ignoreCase = true) -> "SD"
+            else -> "Unknown"
+        }
+    }
+
     private fun findAllVideoUrls(document: Document): List<Pair<String, String>> {
         val videoUrls = mutableListOf<Pair<String, String>>()
         
@@ -106,17 +120,7 @@ class DattebayoBR : MainAPI() {
             
             matches.forEach { match ->
                 val url = match.groupValues[1]
-                val quality = when {
-                    script.parent()?.id() == "jwContainer_2" -> "FULLHD"
-                    script.parent()?.id() == "jwContainer_1" -> "HD"
-                    script.parent()?.id() == "jwContainer_0" -> "SD"
-                    url.contains("/fful/") -> "FULLHD"
-                    url.contains("/f222/") -> "HD"
-                    url.contains("/fiphoneb/") -> "SD"
-                    url.contains("/fiphonec/") -> "SD"
-                    url.contains("/f333/") -> "HD"
-                    else -> "Unknown"
-                }
+                val quality = detectQuality(url, script.parent()?.id())
                 videoUrls.add(Pair(url, quality))
             }
         }
@@ -126,14 +130,7 @@ class DattebayoBR : MainAPI() {
         cloudflareRegex.findAll(html).forEach { match ->
             val url = match.value
             if (!videoUrls.any { it.first == url }) {
-                val quality = when {
-                    url.contains("/fful/") -> "FULLHD"
-                    url.contains("/f222/") -> "HD"
-                    url.contains("/fiphoneb/") -> "SD"
-                    url.contains("/fiphonec/") -> "SD"
-                    url.contains("/f333/") -> "HD"
-                    else -> "Unknown"
-                }
+                val quality = detectQuality(url)
                 videoUrls.add(Pair(url, quality))
             }
         }
@@ -191,8 +188,8 @@ class DattebayoBR : MainAPI() {
         }
         
         val maxPage = when {
-            request.data.contains("/animes/letra/todos") -> 218
-            request.data.contains("/anime-dublado") -> 51
+            request.data.contains("/animes/letra/todos") -> 309
+            request.data.contains("/anime-dublado") -> 55
             request.data.contains("/tokusatsus") -> 12
             request.data.contains("/doramas") -> 36
             request.data.contains("/donghua") -> 10
