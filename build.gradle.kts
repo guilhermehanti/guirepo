@@ -32,12 +32,12 @@ subprojects {
     apply(plugin = "com.lagradost.cloudstream3.gradle")
 
     cloudstream {
-        setRepo("https://github.com/lawlietbr/lietrepo")
-        authors = listOf("lawlietbr")
+        setRepo("https://github.com/guilhermehanti/guirepo")
+        authors = listOf("guilhermehanti")
     }
 
     android {
-        namespace = "com.lietrepo"
+        namespace = "com.guirepo"
 
         defaultConfig {
             minSdk = 21

@@ -14,7 +14,7 @@
 [![Tamanho do Repo](https://img.shields.io/github/repo-size/guilhermehanti/guirepo?style=for-the-badge&logo=github&color=FF9800&label=Tamanho)](https://github.com/guilhermehanti/guirepo)
 [![Stars](https://img.shields.io/github/stars/guilhermehanti/guirepo?style=for-the-badge&color=FFD700&logo=github&label=Stars)](https://github.com/guilhermehanti/guirepo/stargazers)
 [![Forks](https://img.shields.io/github/forks/guilhermehanti/guirepo?style=for-the-badge&color=orange&logo=github&label=Forks)](https://github.com/guilhermehanti/guirepo/network/members)
-[![License MIT](https://img.shields.io/badge/License-MIT-8A2BE2?style=for-the-badge&logo=opensourceinitiative)](https://opensource.org/licenses/MIT)
+[![License AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-8A2BE2?style=for-the-badge&logo=gnu)](LICENSE)
 
 </div>
 
@@ -70,10 +70,9 @@ Os plugins **somente indexam** links públicos de terceiros. Todo conteúdo vem 
 
 # 📜 Licença
 
-[![MIT License](https://img.shields.io/badge/License-MIT-8A2BE2?style=for-the-badge&logo=opensourceinitiative)](https://opensource.org/licenses/MIT)
+[![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-8A2BE2?style=for-the-badge&logo=gnu)](LICENSE)
 
-Licença **MIT** — código livre para usar, modificar e distribuir.  
-Só mantenha os créditos!
+Licença **GNU AGPL-3.0** — você pode usar, estudar, modificar e distribuir o código livremente, **desde que mantenha os créditos a este repositório e publique gratuitamente o código-fonte de quaisquer modificações sob a mesma licença** (inclusive caso hospede versões modificadas do addon de TV em servidores ou Cloudflare Workers).
 
 ---
 

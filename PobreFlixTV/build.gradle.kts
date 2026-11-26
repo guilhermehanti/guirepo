@@ -4,7 +4,7 @@ cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")
     description = "Filmes, Séries e Animações Dublados e Legendados em HD no PobreFlixTV"
     language = "pt-br"
-    authors = listOf("lawlietbr", "guilhermehanti")
+    authors = listOf("guilhermehanti")
     status = 1
     tvTypes = listOf("Movie", "TvSeries", "Cartoon")
     iconUrl = "https://www.pobreflixtvfilmes.com/assets/img/favicon.png"
