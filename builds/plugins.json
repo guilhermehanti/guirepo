@@ -148,10 +148,10 @@
     },
     {
         "iconUrl": "https://filmeflix.work/wp-content/uploads/2026/09/cropped-android-chrome-512x512-1-192x192.png",
-        "fileHash": "sha256-01d4a7c0e16acc1136665d914a9e22ee05fd971152596e8fca7468a4f60c01fb",
+        "fileHash": "sha256-5b0ef663920cfcb2fbd8cc9886483ac0fc12b7fef77734adbac9846358e9ee37",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 41361,
+        "fileSize": 42433,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -162,7 +162,7 @@
             "Series",
             "Cartoon"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "FilmeFlix",
         "description": "Filmes e S\u00e9ries Dublados e Nacionais em HD no FilmeFlix (Vidmoly e Abyss)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/FilmeFlix.cs3",
@@ -339,10 +339,10 @@
     },
     {
         "iconUrl": "https://www.ultracinetv.lat/wp-content/uploads/2024/07/cropped-favicon-300x300.png",
-        "fileHash": "sha256-a1230fd81cd624a5691b62c1fc97382738615aecae9a1af9a4a4685215aac110",
+        "fileHash": "sha256-7a1c0f77bb63e8bd34b839d9e1e7c9675266d91ec1bed59199983722f93725df",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 162238,
+        "fileSize": 163298,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -352,7 +352,7 @@
             "Movies",
             "Series"
         ],
-        "version": 8,
+        "version": 9,
         "internalName": "UltraCineTV",
         "description": "Filmes e S\u00e9ries Dublados e Legendados em HD no UltraCineTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/UltraCineTV.cs3",
