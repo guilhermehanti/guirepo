@@ -52,7 +52,6 @@ No **NuvioTV**, Plugins (`.cs3`) e Addons (protocolo Stremio) funcionam em siste
    ```text
    https://guirepo-tv-addon.mgaengenhariapr.workers.dev/manifest.json
    ```
-   *(Para uso local na sua rede Wi-Fi rodando `node server.mjs`, use `http://<IP-DO-PC>:7000/manifest.json`; no emulador MuMu, use `http://10.0.2.2:7000/manifest.json`.)*
 3. Clique em **Instalar**. O addon unifica automaticamente **BRFlix TV, EmbedTV, TV a Cabo, RedeCanais TV e Rei dos Embeds** em catálogos nativos de TV ao Vivo e Agenda Esportiva (com múltiplos sinais por canal).
 
 ### Passo 3 — Organização da Tela Inicial (recomendado para Fire TV / Android TV)
@@ -80,11 +79,13 @@ Só mantenha os créditos!
 
 # Créditos e Relacionados
 
-Este projeto nasceu originalmente como um fork do **lietrepo**, porém foi amplamente reformulado: diversos plugins novos foram implementados do zero e os plugins remanescentes foram atualizados e corrigidos.
+Este projeto nasceu originalmente como um fork do **lietrepo**, porém foi amplamente reformulado: diversos plugins novos foram implementados do zero e os plugins remanescentes foram atualizados e corrigidos. Além disso, foi implementada compatibilidade completa com o **NuvioTV**, tanto nos plugins de Filmes, Séries, Desenhos e Animes (`.cs3`) quanto por meio de um addon dedicado de TV ao Vivo e Agenda Esportiva hospedado em Cloudflare Workers.
 
 Repositórios e links de referência:
 - [![lietrepo](https://img.shields.io/badge/lietrepo-Fork_Original-9C27B0?style=for-the-badge&logo=github)](https://github.com/lawlietbr/lietrepo)
 - [![saimuelrepo](https://img.shields.io/badge/saimuelrepo-Repositório-FF6B6B?style=for-the-badge&logo=github)](https://github.com/saimuelbr/saimuelrepo)
 - [![CloudStream Official](https://img.shields.io/badge/CloudStream_Official-GitHub-7289DA?style=for-the-badge&logo=github)](https://github.com/recloudstream/cloudstream)
 - [![CloudStream App](https://img.shields.io/badge/🌐_Baixar_CloudStream-2196F3?style=for-the-badge&logo=android)](https://cloudstream-apk.com/)
-- [![Documentação CloudStream](https://img.shields.io/badge/📚_Documentação-4CAF50?style=for-the-badge&logo=readthedocs)](https://recloudstream.github.io/csdocs/)
+- [![Documentação CloudStream](https://img.shields.io/badge/📚_Documentação_CloudStream-4CAF50?style=for-the-badge&logo=readthedocs)](https://recloudstream.github.io/csdocs/)
+- [![NuvioTV GitHub](https://img.shields.io/badge/NuvioTV-GitHub-111111?style=for-the-badge&logo=github)](https://github.com/NuvioMedia/NuvioTV)
+- [![Baixar NuvioTV](https://img.shields.io/badge/📺_Baixar_NuvioTV-00BCD4?style=for-the-badge&logo=android)](https://github.com/NuvioMedia/NuvioTV/releases)
