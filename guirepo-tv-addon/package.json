@@ -1,0 +1,10 @@
+{
+  "name": "guirepo-tv-addon",
+  "version": "1.0.0",
+  "description": "Stremio / NuvioTV Addon unificado de TV ao Vivo e Esportes BR (BRFlix TV, EmbedTV, TV a Cabo, RedeCanais TV e Rei dos Embeds)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test/smoke.mjs"
+  }
+}

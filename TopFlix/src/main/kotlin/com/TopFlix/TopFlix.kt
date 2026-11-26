@@ -2,6 +2,7 @@ package com.TopFlix
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
@@ -18,12 +19,14 @@ class TopFlixPlugin : Plugin() {
     }
 }
 
-class TopFlix : MainAPI() {
+class TopFlix : TmdbProvider() {
     override var mainUrl = "https://topflix.actor"
     override var name = "TopFlix"
     override val hasMainPage = true
     override var lang = "pt-br"
     override val hasDownloadSupport = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     override val usesWebView = false
 
@@ -87,32 +90,49 @@ class TopFlix : MainAPI() {
         return newHomePageResponse(request.name, items, hasNextPage)
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.isBlank()) return emptyList()
-
-        val document = try {
-            app.post(
-                url = "$mainUrl/",
-                data = mapOf(
-                    "do" to "search",
-                    "subaction" to "search",
-                    "story" to query
-                ),
-                referer = "$mainUrl/",
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Origin" to mainUrl,
-                    "Content-Type" to "application/x-www-form-urlencoded"
-                )
-            ).document
-        } catch (_: Exception) {
-            val encoded = URLEncoder.encode(query, "UTF-8")
-            app.get("$mainUrl/?do=search&subaction=search&story=$encoded", headers = defaultHeaders()).document
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
         }
-
-        return document.select("div.poster.grid-item, div.shrtstry")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url }
+        for (term in variants) {
+            val document = try {
+                app.post(
+                    url = "$mainUrl/",
+                    data = mapOf(
+                        "do" to "search",
+                        "subaction" to "search",
+                        "story" to term
+                    ),
+                    referer = "$mainUrl/",
+                    headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Origin" to mainUrl,
+                        "Content-Type" to "application/x-www-form-urlencoded"
+                    )
+                ).document
+            } catch (_: Exception) {
+                val encoded = URLEncoder.encode(term, "UTF-8")
+                app.get("$mainUrl/?do=search&subaction=search&story=$encoded", headers = defaultHeaders()).document
+            }
+            val items = document.select("div.poster.grid-item, div.shrtstry")
+                .mapNotNull { it.toSearchResult() }
+                .distinctBy { it.url }
+            if (items.isNotEmpty()) return items
+        }
+        return emptyList()
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -120,8 +140,10 @@ class TopFlix : MainAPI() {
         val href = fixUrl(linkEl.attr("href"))
         if (href.isBlank()) return null
 
-        val rawTitle = linkEl.text().trim()
-            .ifBlank { selectFirst(".poster__img img")?.attr("alt")?.trim() ?: "" }
+        val rawTitle = cleanPageTitle(
+            linkEl.text().trim()
+                .ifBlank { selectFirst(".poster__img img")?.attr("alt")?.trim() ?: "" }
+        )
         if (rawTitle.isBlank()) return null
 
         val poster = selectFirst(".poster__img img")?.let { img ->
@@ -218,7 +240,14 @@ class TopFlix : MainAPI() {
         return titles
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList =
+        newSearchResponseList(if (page == 1) search(query) else emptyList(), false)
+
     override suspend fun load(url: String): LoadResponse? {
+        if (TmdbPtBrBridge.isTmdbInput(url)) {
+            val resolved = TmdbPtBrBridge.resolveUrl(url, ::search) ?: return null
+            return load(resolved)
+        }
         val response = app.get(url, headers = defaultHeaders())
         val html = response.text
         val doc = response.document

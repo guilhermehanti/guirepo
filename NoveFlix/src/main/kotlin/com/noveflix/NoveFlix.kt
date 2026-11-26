@@ -75,10 +75,30 @@ class NoveFlix : MainAPI() {
         return newHomePageResponse(request.name, items, hasNext)
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val doc = app.get("$mainUrl/?s=$encoded", headers = defaultHeaders()).document
-        return NoveFlixParser.parseSearchCards(doc, mainUrl).map { it.toSearchResponse() }
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
+        for (term in variants) {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val doc = app.get("$mainUrl/?s=$encoded", headers = defaultHeaders()).document
+            val items = NoveFlixParser.parseSearchCards(doc, mainUrl).map { it.toSearchResponse() }
+            if (items.isNotEmpty()) return items
+        }
+        return emptyList()
     }
 
     override suspend fun load(url: String): LoadResponse {

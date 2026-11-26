@@ -46,6 +46,16 @@ import java.util.concurrent.atomic.AtomicInteger
 /** Keeps the verified browser session as transport; CloudStream still decodes the HLS. */
 internal class PobreFlixBrowserStream : Closeable {
     private val ui = Handler(Looper.getMainLooper())
+    private fun resolveHostActivity(): android.app.Activity? {
+        CommonActivity.activity?.takeIf { !it.isFinishing && !it.isDestroyed }?.let { return it }
+        return try {
+            val acra = Class.forName("com.lagradost.cloudstream3.AcraApplication")
+            val act = acra.getMethod("getActivity").invoke(null) as? android.app.Activity
+            act?.takeIf { !it.isFinishing && !it.isDestroyed }
+        } catch (_: Throwable) {
+            null
+        }
+    }
     private val server = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
     private val secret = UUID.randomUUID().toString()
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -218,7 +228,7 @@ internal class PobreFlixBrowserStream : Closeable {
             started = true
             ui.post {
                 try {
-                    val activity = CommonActivity.activity ?: error("CloudStream activity unavailable")
+                    val activity = resolveHostActivity() ?: error("Host activity unavailable")
                     check(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                         "Atualize o Android System WebView para usar $provider"
                     }

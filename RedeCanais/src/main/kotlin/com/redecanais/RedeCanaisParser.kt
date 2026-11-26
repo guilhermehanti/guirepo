@@ -241,6 +241,24 @@ internal object RedeCanaisParser {
         return StreamSource(url = rawSrc, isM3u8 = isM3u8)
     }
 
+    fun isCloudflareChallenge(html: String, statusCode: Int = 200): Boolean {
+        if (statusCode == 403 || statusCode == 503) {
+            if (html.contains("cloudflare", ignoreCase = true) ||
+                html.contains("cf-challenge", ignoreCase = true) ||
+                html.contains("cf-browser-verification", ignoreCase = true) ||
+                html.contains("Attention Required", ignoreCase = true) ||
+                html.contains("Just a moment", ignoreCase = true) ||
+                html.contains("turnstile", ignoreCase = true)
+            ) {
+                return true
+            }
+        }
+        return html.contains("cf-turnstile", ignoreCase = true) ||
+            html.contains("/cdn-cgi/challenge-platform/", ignoreCase = true) ||
+            html.contains("Attention Required! | Cloudflare", ignoreCase = true) ||
+            html.contains("<title>Just a moment...</title>", ignoreCase = true)
+    }
+
     fun cleanSynopsis(raw: String?): String? {
         val text = raw?.trim().orEmpty()
         if (text.isBlank()) return null

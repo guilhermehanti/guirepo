@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'guirepo-tv-addon/**'
+      - '.github/workflows/deploy-tv-addon.yml'
+      - 'README.md'
   workflow_dispatch:
 
 jobs:

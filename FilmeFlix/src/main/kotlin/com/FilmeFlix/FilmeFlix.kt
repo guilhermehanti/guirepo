@@ -2,6 +2,7 @@ package com.FilmeFlix
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.*
@@ -30,12 +31,14 @@ class FilmeFlixPlugin : Plugin() {
     }
 }
 
-class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() {
+class FilmeFlix internal constructor(private val proxy: AbyssProxy) : TmdbProvider() {
     override var mainUrl = "https://filmeflix.space"
     override var name = "FilmeFlix"
     override val hasMainPage = true
     override var lang = "pt-br"
     override val hasDownloadSupport = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Cartoon)
     override val usesWebView = false
 
@@ -117,39 +120,72 @@ class FilmeFlix internal constructor(private val proxy: AbyssProxy) : MainAPI() 
         }
     }
 
+    private fun cleanSearchTitle(raw: String): String = raw
+        .replace(Regex("""(?i)^assistir\s+"""), "")
+        .replace(Regex("""(?i)\s*[\(\[]?\s*(dublado|legendado|dual\s*áudio|dual\s*audio|nacional|completo|online|hd|4k)\s*[\)\]]?"""), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .ifBlank { raw.trim() }
+
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.isBlank()) return emptyList()
-        val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = app.get("$mainUrl/?s=$encoded", headers = defaultHeaders()).document
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
+        for (term in variants) {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val doc = app.get("$mainUrl/?s=$encoded", headers = defaultHeaders()).document
+            val items = doc.select("div.result-item")
+                .mapNotNull { item ->
+                    val link = item.selectFirst(".title a[href], a[href]") ?: return@mapNotNull null
+                    val href = fixUrl(link.attr("href"))
+                    if (!href.contains("/filmes/") && !href.contains("/series/")) return@mapNotNull null
 
-        return doc.select("div.result-item")
-            .mapNotNull { item ->
-                val link = item.selectFirst(".title a[href], a[href]") ?: return@mapNotNull null
-                val href = fixUrl(link.attr("href"))
-                if (!href.contains("/filmes/") && !href.contains("/series/")) return@mapNotNull null
+                    val img = item.selectFirst("img")
+                    val rawTitle = link.text().trim()
+                        .ifBlank { img?.attr("alt")?.trim().orEmpty() }
+                    val title = cleanSearchTitle(rawTitle)
+                    if (title.isBlank()) return@mapNotNull null
 
-                val img = item.selectFirst("img")
-                val title = link.text().trim()
-                    .ifBlank { img?.attr("alt")?.trim().orEmpty() }
-                if (title.isBlank()) return@mapNotNull null
+                    val poster = upgradeTmdbPoster(img?.attr("data-src")?.ifBlank { img.attr("src") })
+                    val isSeries = href.contains("/series/")
 
-                val poster = upgradeTmdbPoster(img?.attr("data-src")?.ifBlank { img.attr("src") })
-                val isSeries = href.contains("/series/")
-
-                if (isSeries) {
-                    newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                        this.posterUrl = poster
-                    }
-                } else {
-                    newMovieSearchResponse(title, href, TvType.Movie) {
-                        this.posterUrl = poster
+                    if (isSeries) {
+                        newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                            this.posterUrl = poster
+                        }
+                    } else {
+                        newMovieSearchResponse(title, href, TvType.Movie) {
+                            this.posterUrl = poster
+                        }
                     }
                 }
-            }
-            .distinctBy { it.url }
+                .distinctBy { it.url }
+            if (items.isNotEmpty()) return items
+        }
+        return emptyList()
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList =
+        newSearchResponseList(if (page == 1) search(query) else emptyList(), false)
+
     override suspend fun load(url: String): LoadResponse? {
+        if (TmdbPtBrBridge.isTmdbInput(url)) {
+            val resolved = TmdbPtBrBridge.resolveUrl(url, ::search) ?: return null
+            return load(resolved)
+        }
         val doc = app.get(url, headers = defaultHeaders()).document
 
         val title = doc.selectFirst(".sheader .data h1, h1")?.text()?.trim()

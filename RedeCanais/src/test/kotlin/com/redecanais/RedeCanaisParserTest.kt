@@ -136,4 +136,26 @@ class RedeCanaisParserTest {
         assertEquals("https://cdn.example.com/stream/master.m3u8?token=1", hls!!.url)
         assertTrue(hls.isM3u8)
     }
+
+    @Test
+    fun isCloudflareChallenge_detectsBlockedResponsesOnly() {
+        assertTrue(
+            RedeCanaisParser.isCloudflareChallenge(
+                "<html><title>Attention Required! | Cloudflare</title></html>",
+                403
+            )
+        )
+        assertTrue(
+            RedeCanaisParser.isCloudflareChallenge(
+                "<script src=\"/cdn-cgi/challenge-platform/h/b/orchestrate\"></script>",
+                200
+            )
+        )
+        assertFalse(
+            RedeCanaisParser.isCloudflareChallenge(
+                "<script>var SRC = \"https://cdn.example.com/movie.mp4\";</script>",
+                200
+            )
+        )
+    }
 }

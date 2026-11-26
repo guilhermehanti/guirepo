@@ -3,6 +3,7 @@ package com.PobreFlixTV
 import android.content.Context
 import android.util.Base64
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.*
@@ -21,12 +22,14 @@ class PobreFlixTVPlugin : Plugin() {
     override fun beforeUnload() { browserStreams?.close(); browserStreams = null }
 }
 
-class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrowserStream) : MainAPI() {
+class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrowserStream) : TmdbProvider() {
     override var mainUrl = "https://www.pobreflixtvfilmes.com"
     override var name = "PobreFlixTV"
     override val hasMainPage = true
     override var lang = "pt-br"
     override val hasDownloadSupport = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Cartoon)
     override val usesWebView = false
 
@@ -94,10 +97,12 @@ class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrow
 
         val href = fixUrl(rawHref)
         val img = selectFirst("img")
-        val title = selectFirst("h3, h2, .title, .serie-info h3")?.text()?.trim()
-            ?.ifBlank { img?.attr("alt")?.trim() }
-            ?: img?.attr("alt")?.trim()
-            ?: text().trim()
+        val title = cleanPageTitle(
+            selectFirst("h3, h2, .title, .serie-info h3")?.text()?.trim()
+                ?.ifBlank { img?.attr("alt")?.trim() }
+                ?: img?.attr("alt")?.trim()
+                ?: text().trim()
+        )
         if (title.isBlank()) return null
 
         val poster = img?.let {
@@ -117,17 +122,42 @@ class PobreFlixTV internal constructor(private val browserStreams: PobreFlixBrow
         }
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
-        if (query.isBlank()) return emptyList()
-        val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = app.get("$mainUrl/buscar?q=$encoded", headers = defaultHeaders()).document
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
 
-        return doc.select("a.serie-card, a[href^='/filme/'], a[href^='/serie/']")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url }
+    override suspend fun search(query: String): List<SearchResponse> {
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
+        for (term in variants) {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val doc = app.get("$mainUrl/buscar?q=$encoded", headers = defaultHeaders()).document
+            val items = doc.select("a.serie-card, a[href^='/filme/'], a[href^='/serie/']")
+                .mapNotNull { it.toSearchResult() }
+                .distinctBy { it.url }
+            if (items.isNotEmpty()) return items
+        }
+        return emptyList()
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList =
+        newSearchResponseList(if (page == 1) search(query) else emptyList(), false)
+
     override suspend fun load(url: String): LoadResponse? {
+        if (TmdbPtBrBridge.isTmdbInput(url)) {
+            val resolved = TmdbPtBrBridge.resolveUrl(url, ::search) ?: return null
+            return load(resolved)
+        }
         val resp = app.get(url, headers = defaultHeaders())
         val html = resp.text
         val doc = resp.document

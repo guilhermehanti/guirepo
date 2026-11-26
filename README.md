@@ -1,7 +1,7 @@
 <div align="center">
 
 # GuiRepo
-## 🇧🇷 Novo repositório BR para CloudStream
+## 🇧🇷 Repositório BR para CloudStream e NuvioTV
 
 **Deixe uma ⭐ se esse repo te ajudou**
 
@@ -16,17 +16,48 @@
 [![Forks](https://img.shields.io/github/forks/guilhermehanti/guirepo?style=for-the-badge&color=orange&logo=github&label=Forks)](https://github.com/guilhermehanti/guirepo/network/members)
 [![License MIT](https://img.shields.io/badge/License-MIT-8A2BE2?style=for-the-badge&logo=opensourceinitiative)](https://opensource.org/licenses/MIT)
 
-<br>
+</div>
 
-### Instalação
+---
 
-**Escreva o shortcode `guirepo` no CloudStream**
+## 📺 Instalação no CloudStream
 
-**ou copie esta URL e cole no CloudStream:**
+No **CloudStream**, basta instalar o repositório uma única vez — ele já traz **Filmes, Séries, Animes, Desenhos e TV ao Vivo/Esportes** tudo junto:
+
+1. Abra o **CloudStream → Configurações → Extensões → Adicionar repositório**.
+2. Digite o shortcode: **`guirepo`**
+3. Ou cole diretamente a URL:
+   ```text
+   https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/repo.json
+   ```
 
 [![Copiar URL do Repositório](https://img.shields.io/badge/📋_COPIAR_URL-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/repo.json)
 
-</div>
+---
+
+## 🚀 Instalação no NuvioTV
+
+No **NuvioTV**, Plugins (`.cs3`) e Addons (protocolo Stremio) funcionam em sistemas separados. Para ter o catálogo completo (**Filmes/Séries/Animes + TV ao Vivo/Esportes**), faça as **2 instalações abaixo nesta ordem**:
+
+### Passo 1 — Filmes, Séries, Desenhos e Animes (aba `Plugins`)
+1. Abra **Definições → Plugins → Adicionar repositório**.
+2. Informe o shortcode **`guirepo`** ou cole a URL:
+   ```text
+   https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/repo.json
+   ```
+
+### Passo 2 — TV ao Vivo e Agenda Esportiva (aba `Addons`)
+1. Abra **Definições → Addons → Instalar addon**.
+2. Cole a URL do manifesto do addon **GuiRepo TV & Esportes BR**:
+   ```text
+   https://<URL-DO-WORKER-CLOUDFLARE>/manifest.json
+   ```
+   *(Para uso local na sua rede Wi-Fi rodando `node server.mjs`, use `http://<IP-DO-PC>:7000/manifest.json`; no emulador MuMu, use `http://10.0.2.2:7000/manifest.json`.)*
+3. Clique em **Instalar**. O addon unifica automaticamente **BRFlix TV, EmbedTV, TV a Cabo, RedeCanais TV e Rei dos Embeds** em catálogos nativos de TV ao Vivo e Agenda Esportiva (com múltiplos sinais por canal).
+
+### Passo 3 — Organização da Tela Inicial (recomendado para Fire TV / Android TV)
+1. Em **Addons → Reordenar catálogos iniciais**, mova os catálogos do **GuiRepo TV & Esportes BR** para logo abaixo de **Trending Movies** e **Trending Series**.
+2. **Sincronização:** se estiver logado na sua conta Nuvio, os dois (repositório de Plugins + Addon de TV) sincronizam automaticamente para outros aparelhos novos.
 
 ---
 

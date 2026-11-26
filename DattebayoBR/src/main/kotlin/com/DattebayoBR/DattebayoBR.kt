@@ -74,6 +74,12 @@ class DattebayoBR : MainAPI() {
             .trim()
     }
 
+    private fun extractSeasonNumber(title: String): Int {
+        val m = Regex("""(?:(\d+)\s*[ªaº°]?\s*temporada|temporada\s*(\d+)|season\s*(\d+))""", RegexOption.IGNORE_CASE)
+            .find(title)
+        return m?.groupValues?.drop(1)?.firstOrNull { it.isNotBlank() }?.toIntOrNull()?.takeIf { it > 0 } ?: 1
+    }
+
     private fun extractEpisodeNumber(title: String): Int? {
         val fromEpisodio = "ep(?:is[oó]dio)?\\s*(\\d+)".toRegex(RegexOption.IGNORE_CASE)
             .find(title)?.groupValues?.get(1)?.toIntOrNull()
@@ -222,51 +228,70 @@ class DattebayoBR : MainAPI() {
         return newHomePageResponse(request.name, items, true)
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.length < 2) return emptyList()
-        
-        val formattedQuery = query.replace(" ", "+")
-        val searchUrl = "$mainUrl/busca?busca=$formattedQuery"
-        
-        val document = try {
-            app.get(searchUrl).document
-        } catch (e: Exception) {
-            return emptyList()
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
         }
 
-        val searchResults = mutableListOf<SearchResponse>()
-        
-        // 1. Extrai os resultados da Primeira Página
-        searchResults.addAll(document.select(HOME_ITEM).mapNotNull { it.toSearchResponse() })
-        
-        // 2. Descobre a última página analisando as URLs (à prova de mudanças de layout)
-        val lastPage = document.select("a[href]")
-            .mapNotNull { link ->
-                "(?:/page/|[?&]page=)(\\d+)".toRegex()
-                    .find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
-            }
-            .maxOrNull() ?: 1
+        for (term in variants) {
+            val formattedQuery = java.net.URLEncoder.encode(term, "UTF-8")
+            val searchUrl = "$mainUrl/busca?busca=$formattedQuery"
 
-        // 3. Se houver mais de 1 página, busca o resto em lotes paralelos (chunked + amap)
-        if (lastPage > 1) {
-            val pageUrls = (2..lastPage).map { "$mainUrl/busca?busca=$formattedQuery&page=$it" }
-            
-            val additionalResults = pageUrls.chunked(5).flatMap { lote ->
-                lote.amap { pageUrl ->
-                    try {
-                        val pageDoc = app.get(pageUrl).document
-                        pageDoc.select(HOME_ITEM).mapNotNull { it.toSearchResponse() }
-                    } catch (e: Exception) {
-                        emptyList<SearchResponse>()
-                    }
-                }.flatten() // <-- A CORREÇÃO ENTRA AQUI
+            val document = try {
+                app.get(searchUrl).document
+            } catch (e: Exception) {
+                continue
             }
-            
-            searchResults.addAll(additionalResults)
+
+            val searchResults = mutableListOf<SearchResponse>()
+
+            // 1. Extrai os resultados da Primeira Página
+            searchResults.addAll(document.select(HOME_ITEM).mapNotNull { it.toSearchResponse() })
+            if (searchResults.isEmpty()) continue
+
+            // 2. Descobre a última página analisando as URLs (à prova de mudanças de layout)
+            val lastPage = document.select("a[href]")
+                .mapNotNull { link ->
+                    "(?:/page/|[?&]page=)(\\d+)".toRegex()
+                        .find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+                }
+                .maxOrNull() ?: 1
+
+            // 3. Se houver mais de 1 página, busca o resto em lotes paralelos (chunked + amap)
+            if (lastPage > 1) {
+                val pageUrls = (2..minOf(lastPage, 5)).map { "$mainUrl/busca?busca=$formattedQuery&page=$it" }
+
+                val additionalResults = pageUrls.chunked(5).flatMap { lote ->
+                    lote.amap { pageUrl ->
+                        try {
+                            val pageDoc = app.get(pageUrl).document
+                            pageDoc.select(HOME_ITEM).mapNotNull { it.toSearchResponse() }
+                        } catch (e: Exception) {
+                            emptyList<SearchResponse>()
+                        }
+                    }.flatten()
+                }
+
+                searchResults.addAll(additionalResults)
+            }
+
+            // 4. Retorna removendo possíveis itens duplicados
+            return searchResults.distinctBy { it.url }
         }
-        
-        // 4. Retorna removendo possíveis itens duplicados
-        return searchResults.distinctBy { it.url }
+        return emptyList()
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -307,6 +332,7 @@ class DattebayoBR : MainAPI() {
             ShowStatus.Ongoing
         }
 
+        val seasonNumber = extractSeasonNumber(title)
         val episodes = mutableListOf<Episode>()
 
         // Função isolada para ler os episódios de qualquer Document (página 1, 2, 3...)
@@ -327,6 +353,7 @@ class DattebayoBR : MainAPI() {
                         name = if (tvType == TvType.AnimeMovie) "Filme" 
                                else if (episodeNumber != null) "Episódio $episodeNumber" 
                                else episodeTitle
+                        if (tvType != TvType.AnimeMovie) season = seasonNumber
                         episode = episodeNumber
                         posterUrl = episodePoster ?: poster
                     }

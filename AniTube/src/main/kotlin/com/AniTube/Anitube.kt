@@ -264,21 +264,41 @@ class AniTube : MainAPI() {
         }
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.length < 2) return emptyList()
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
 
-        val document = app.get("$mainUrl$SEARCH_PATH${query.replace(" ", "+")}").document
+        for (term in variants) {
+            val encoded = java.net.URLEncoder.encode(term, "UTF-8")
+            val document = app.get("$mainUrl$SEARCH_PATH$encoded").document
+            val animeCards = document.select(ANIME_CARD)
+                .mapNotNull { it.toAnimeSearchResponse() }
+                .distinctBy { it.url }
+            if (animeCards.isNotEmpty()) return animeCards
 
-        return document.select("$ANIME_CARD, $EPISODE_CARD")
-            .mapNotNull { 
-                val isEpisode = it.selectFirst(EPISODE_NUMBER_SELECTOR) != null
-                if (isEpisode) {
-                    it.toEpisodeSearchResponse()
-                } else {
-                    it.toAnimeSearchResponse()
+            val allCards = document.select("$ANIME_CARD, $EPISODE_CARD")
+                .mapNotNull {
+                    val isEpisode = it.selectFirst(EPISODE_NUMBER_SELECTOR) != null
+                    if (isEpisode) it.toEpisodeSearchResponse() else it.toAnimeSearchResponse()
                 }
-            }
-            .distinctBy { it.url }
+                .distinctBy { it.url }
+            if (allCards.isNotEmpty()) return allCards
+        }
+        return emptyList()
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -320,6 +340,8 @@ class AniTube : MainAPI() {
         }
 
         val isDubbed = rawTitle.contains("dublado", true) || audioType.contains("dublado", true)
+        val seasonNumber = Regex("""(?:(\d+)\s*[ªaº°]?\s*temporada|temporada\s*(\d+)|season\s*(\d+))""", RegexOption.IGNORE_CASE)
+            .find(rawTitle)?.groupValues?.drop(1)?.firstOrNull { it.isNotBlank() }?.toIntOrNull()?.takeIf { it > 0 } ?: 1
 
         val episodesList = document.select(EPISODE_LIST).mapNotNull { element ->
             val episodeTitle = element.text().trim()
@@ -328,6 +350,7 @@ class AniTube : MainAPI() {
 
             newEpisode(episodeUrl) {
                 this.name = "Episódio $epNumber"
+                this.season = seasonNumber
                 this.episode = epNumber
                 this.posterUrl = poster
             }
@@ -336,6 +359,7 @@ class AniTube : MainAPI() {
         val allEpisodes = if (episodesList.isEmpty() && actualUrl.contains("/video/")) {
             listOf(newEpisode(actualUrl) {
                 this.name = "Episódio $episodeNumber"
+                this.season = seasonNumber
                 this.episode = episodeNumber
                 this.posterUrl = poster
             })

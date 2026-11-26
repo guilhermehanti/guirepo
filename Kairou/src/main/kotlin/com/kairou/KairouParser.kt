@@ -33,7 +33,8 @@ internal data class KairouSource(
     val isM3u8: Boolean,
     val isDash: Boolean = false,
     val height: Int,
-    val referer: String? = null
+    val referer: String? = null,
+    val provider: String = ""
 )
 
 internal data class KairouExtractResult(
@@ -223,7 +224,8 @@ internal object KairouParser {
                         isM3u8 = isM3u8,
                         isDash = isDash,
                         height = height,
-                        referer = customReferer
+                        referer = customReferer,
+                        provider = provider
                     )
                 )
 

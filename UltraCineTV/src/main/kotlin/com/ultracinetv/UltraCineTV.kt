@@ -2,6 +2,7 @@ package com.ultracinetv
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.*
@@ -31,17 +32,34 @@ class UltraCineTVPlugin : Plugin() {
 class UltraCineTV internal constructor(
     private val proxy: AbyssProxy,
     private val browserStreams: UltraCineBrowserStream
-) : MainAPI() {
+) : TmdbProvider() {
     override var mainUrl = "https://www.ultracinetv.lat"
     override var name = "UltraCineTV"
     override var lang = "pt-br"
     override val hasMainPage = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     override val mainPage = mainPageOf("$mainUrl/filmes/" to "Filmes", "$mainUrl/series/" to "Séries")
 
-    private fun UltraCatalog.Item.response(): SearchResponse = if (series) {
-        newTvSeriesSearchResponse(title, url, TvType.TvSeries) { posterUrl = poster }
-    } else newMovieSearchResponse(title, url, TvType.Movie) { posterUrl = poster }
+    private fun cleanSearchTitle(raw: String): String = raw
+        .replace(Regex("""(?i)^assistir\s+"""), "")
+        .replace(Regex("""(?i)\s*[\(\[]?\s*(dublado|legendado|dual\s*áudio|dual\s*audio|nacional|completo|online|hd|4k)\s*[\)\]]?"""), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .ifBlank { raw.trim() }
+
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
+    private fun UltraCatalog.Item.response(): SearchResponse {
+        val cleanName = cleanSearchTitle(title)
+        return if (series) {
+            newTvSeriesSearchResponse(cleanName, url, TvType.TvSeries) { posterUrl = poster }
+        } else newMovieSearchResponse(cleanName, url, TvType.Movie) { posterUrl = poster }
+    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page == 1) request.data else "${request.data}page/$page/"
@@ -52,11 +70,36 @@ class UltraCineTV internal constructor(
         return newHomePageResponse(request.name, UltraCatalog.items(doc).map { it.response() }, next)
     }
 
-    override suspend fun search(query: String): List<SearchResponse> = UltraCatalog.items(
-        app.get("$mainUrl/?s=${URLEncoder.encode(query, "UTF-8")}").document
-    ).map { it.response() }
+    override suspend fun search(query: String): List<SearchResponse> {
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
+        for (term in variants) {
+            val items = UltraCatalog.items(
+                app.get("$mainUrl/?s=${URLEncoder.encode(term, "UTF-8")}").document
+            ).map { it.response() }
+            if (items.isNotEmpty()) return items
+        }
+        return emptyList()
+    }
+
+    override suspend fun search(query: String, page: Int): SearchResponseList =
+        newSearchResponseList(if (page == 1) search(query) else emptyList(), false)
 
     override suspend fun load(url: String): LoadResponse {
+        if (TmdbPtBrBridge.isTmdbInput(url)) {
+            val resolved = TmdbPtBrBridge.resolveUrl(url, ::search)
+                ?: throw ErrorLoadingException("Não encontrado no UltraCineTV")
+            return load(resolved)
+        }
         val doc = app.get(url).document
         val title = doc.selectFirst("h1.entry-title")?.text() ?: throw ErrorLoadingException("Título não encontrado")
         val panel = doc.selectFirst("iframe[src*=painel-aso]")?.absUrl("src")

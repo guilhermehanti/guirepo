@@ -136,21 +136,42 @@ class AnimesFHD : MainAPI() {
         return newHomePageResponse(request.name, items.distinctBy { it.url }, page < totalPages && items.isNotEmpty())
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.trim().length < 2) return emptyList()
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val text = app.get(
-            "$mainUrl/api/series?q=$encoded",
-            headers = DEFAULT_HEADERS,
-            referer = "$mainUrl/animes"
-        ).text
-        val json = JSONObject(text)
-        val arr = json.optJSONArray("series") ?: return emptyList()
-        val items = mutableListOf<SearchResponse>()
-        for (i in 0 until arr.length()) {
-            arr.optJSONObject(i)?.let { seriesObjToSearchResponse(it) }?.let { items.add(it) }
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
         }
-        return items.distinctBy { it.url }
+        for (term in variants) {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val text = app.get(
+                "$mainUrl/api/series?q=$encoded",
+                headers = DEFAULT_HEADERS,
+                referer = "$mainUrl/animes"
+            ).text
+            val json = JSONObject(text)
+            val arr = json.optJSONArray("series") ?: continue
+            val items = mutableListOf<SearchResponse>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                val resp = seriesObjToSearchResponse(obj) ?: continue
+                items.add(resp)
+            }
+            val unique = items.distinctBy { it.url }
+            if (unique.isNotEmpty()) return unique
+        }
+        return emptyList()
     }
 
     private suspend fun fetchAllEpisodesForSeries(

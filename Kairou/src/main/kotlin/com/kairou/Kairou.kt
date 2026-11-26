@@ -2,11 +2,15 @@ package com.kairou
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 
 @CloudstreamPlugin
 class KairouPlugin : Plugin() {
@@ -15,12 +19,14 @@ class KairouPlugin : Plugin() {
     }
 }
 
-class Kairou : MainAPI() {
+class Kairou : TmdbProvider() {
     override var mainUrl = "https://kairou.space"
     override var name = "Kairou"
     override val hasMainPage = true
     override var lang = "pt-br"
     override val hasDownloadSupport = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
@@ -30,6 +36,12 @@ class Kairou : MainAPI() {
     companion object {
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        private val probeClient = OkHttpClient.Builder()
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(6, TimeUnit.SECONDS)
+            .build()
     }
 
     override val mainPage = mainPageOf(
@@ -83,11 +95,38 @@ class Kairou : MainAPI() {
         return items.map { it.toSearchResponse() }
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+        val url = "$mainUrl/api/tmdb/search/multi?query=$encoded&language=pt-BR&page=$page"
+        val jsonText = app.get(url, headers = defaultHeaders()).text
+        val (items, hasNext) = KairouParser.parseTmdbList(jsonText, null)
+        return newSearchResponseList(items.map { it.toSearchResponse() }, hasNext)
+    }
+
     override suspend fun load(url: String): LoadResponse {
-        val clean = url.substringBefore("?").trimEnd('/')
-        val id = clean.substringAfterLast("/").toIntOrNull()
-            ?: throw ErrorLoadingException("ID TMDB inválido: $url")
-        val isMovie = clean.contains("/movie/")
+        val trimmed = url.trim()
+        val parsedTarget: Triple<Int, Boolean, String> = if (trimmed.startsWith("{")) {
+            val json = try {
+                JSONObject(trimmed)
+            } catch (_: Exception) {
+                throw ErrorLoadingException("Payload TMDB inválido: $url")
+            }
+            val tmdbId = json.optInt("id", 0).takeIf { it > 0 }
+                ?: json.optInt("tmdbID", 0).takeIf { it > 0 }
+                ?: throw ErrorLoadingException("ID TMDB inválido: $url")
+            val rawType = json.optString("type").lowercase()
+            val movie = rawType == "movie" || json.optBoolean("isMovie", false)
+            val canonical = "$mainUrl/${if (movie) "movie" else "tv"}/$tmdbId"
+            Triple(tmdbId, movie, canonical)
+        } else {
+            val clean = trimmed.substringBefore("?").trimEnd('/')
+            val segment = clean.substringAfterLast("/")
+            val tmdbId = segment.substringBefore("-").toIntOrNull()
+                ?: throw ErrorLoadingException("ID TMDB inválido: $url")
+            val movie = clean.contains("/movie/") || clean.contains("/filme/")
+            Triple(tmdbId, movie, clean)
+        }
+        val (id, isMovie, clean) = parsedTarget
 
         if (isMovie) {
             val detailJson = app.get("$mainUrl/api/tmdb/movie/$id?language=pt-BR", headers = defaultHeaders()).text
@@ -281,8 +320,36 @@ class Kairou : MainAPI() {
             }
         }
 
+        // Filter out Vortex/atlantic.bz streams (server-side proxy IP triggers a fake
+        // "atlantic.st" anti-VPN slate video) and pre-flight probe remaining sources in
+        // parallel so expired tokens (410 Gone on Coruja), rate-limited proxies (429/404
+        // on Aether/Nautilus), and HTML error pages never reach ExoPlayer.
+        val candidates = extracted.sources.filterNot { src ->
+            val prov = src.provider.lowercase()
+            prov == "vortex" ||
+                src.referer?.contains("atlantic.", ignoreCase = true) == true ||
+                src.url.contains("atlantic.", ignoreCase = true)
+        }
+        val probed = candidates.amap { src ->
+            val linkReferer = src.referer ?: "$mainUrl/"
+            val ok = probeSourceAlive(src, linkReferer)
+            src to ok
+        }
+        val alive = probed.filter { it.second }.map { it.first }
+        // Sort PT-BR Dub first, then PT-BR Leg, then Original.
+        val ordered = alive.sortedBy { src ->
+            val lbl = src.label.lowercase()
+            val prov = src.provider.lowercase()
+            when {
+                lbl.contains("dub") || (lbl.contains("pt-br") && !lbl.contains("leg")) -> 10
+                lbl.contains("leg") && !lbl.contains("original") -> 20
+                prov == "aether" || prov == "nautilus" -> 80
+                else -> 40
+            }
+        }
+
         var emitted = false
-        for (src in extracted.sources) {
+        for (src in ordered) {
             val linkType = when {
                 src.isDash -> ExtractorLinkType.DASH
                 src.isM3u8 -> ExtractorLinkType.M3U8
@@ -316,5 +383,42 @@ class Kairou : MainAPI() {
         }
 
         return emitted
+    }
+
+    private fun probeSourceAlive(src: KairouSource, referer: String): Boolean {
+        return try {
+            val reqBuilder = Request.Builder()
+                .url(src.url)
+                .header("User-Agent", USER_AGENT)
+                .header("Referer", referer)
+            if (!src.isM3u8 && !src.isDash) {
+                reqBuilder.header("Range", "bytes=0-1023")
+            }
+            val origin = runCatching {
+                val u = java.net.URI(referer)
+                "${u.scheme}://${u.authority}"
+            }.getOrNull()
+            if (!origin.isNullOrBlank() && !referer.startsWith(mainUrl)) {
+                reqBuilder.header("Origin", origin)
+            }
+            probeClient.newCall(reqBuilder.build()).execute().use { resp ->
+                if (resp.code !in 200..299) return false
+                val ct = resp.header("Content-Type").orEmpty().lowercase()
+                if (ct.contains("text/html") || ct.contains("application/json")) return false
+                if (src.isM3u8 || src.isDash) {
+                    val buf = ByteArray(4096)
+                    val read = resp.body?.byteStream()?.read(buf) ?: 0
+                    if (read <= 0) return false
+                    val head = String(buf, 0, read, Charsets.UTF_8)
+                    val trimmedHead = head.trimStart()
+                    if (trimmedHead.startsWith("<!") || trimmedHead.startsWith("<html", ignoreCase = true)) return false
+                    if (src.isM3u8 && !head.contains("#EXTM3U")) return false
+                    if (head.contains("atlantic.st", ignoreCase = true) || head.contains("classroom.best", ignoreCase = true)) return false
+                }
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 }

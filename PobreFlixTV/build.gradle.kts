@@ -1,4 +1,4 @@
-version = 4
+version = 5
 
 cloudstream {
     setRepo("https://github.com/guilhermehanti/guirepo")
@@ -6,7 +6,7 @@ cloudstream {
     language = "pt-br"
     authors = listOf("lawlietbr", "guilhermehanti")
     status = 1
-    tvTypes = listOf("Movies", "Series", "Cartoon")
+    tvTypes = listOf("Movie", "TvSeries", "Cartoon")
     iconUrl = "https://www.pobreflixtvfilmes.com/assets/img/favicon.png"
 }
 

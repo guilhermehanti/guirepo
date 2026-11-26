@@ -2,6 +2,7 @@ package com.brflix
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.*
@@ -20,12 +21,14 @@ class BRFlixPlugin : Plugin() {
     override fun beforeUnload() { browserStreams?.close(); browserStreams = null }
 }
 
-class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStream) : MainAPI() {
+class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStream) : TmdbProvider() {
     override var mainUrl = "https://brflix.lat"
     override var name = "BRFlix"
     override val hasMainPage = true
     override var lang = "pt-br"
     override val hasDownloadSupport = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
@@ -120,12 +123,37 @@ class BRFlix internal constructor(private val browserStreams: BRFlixBrowserStrea
         return items.map { it.toSearchResponse() }
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+        val jsonText = fetchTmdbJson("search/multi?query=$encoded&language=pt-BR&page=$page")
+        val (items, hasNext) = BRFlixVodParser.parseTmdbList(jsonText, null)
+        return newSearchResponseList(items.map { it.toSearchResponse() }, hasNext)
+    }
+
     override suspend fun load(url: String): LoadResponse {
-        val clean = url.substringBefore("?").trimEnd('/')
-        val segment = clean.substringAfterLast("/")
-        val id = segment.substringBefore("-").toIntOrNull()
-            ?: throw ErrorLoadingException("ID TMDB inválido: $url")
-        val isMovie = clean.contains("/filme/") || clean.contains("/movie/")
+        val trimmed = url.trim()
+        val parsedTarget: Triple<Int, Boolean, String> = if (trimmed.startsWith("{")) {
+            val json = try {
+                JSONObject(trimmed)
+            } catch (_: Exception) {
+                throw ErrorLoadingException("Payload TMDB inválido: $url")
+            }
+            val tmdbId = json.optInt("id", 0).takeIf { it > 0 }
+                ?: json.optInt("tmdbID", 0).takeIf { it > 0 }
+                ?: throw ErrorLoadingException("ID TMDB inválido: $url")
+            val rawType = json.optString("type").lowercase()
+            val movie = rawType == "movie" || json.optBoolean("isMovie", false)
+            val canonical = "$mainUrl/${if (movie) "filme" else "serie"}/$tmdbId"
+            Triple(tmdbId, movie, canonical)
+        } else {
+            val clean = trimmed.substringBefore("?").trimEnd('/')
+            val segment = clean.substringAfterLast("/")
+            val tmdbId = segment.substringBefore("-").toIntOrNull()
+                ?: throw ErrorLoadingException("ID TMDB inválido: $url")
+            val movie = clean.contains("/filme/") || clean.contains("/movie/")
+            Triple(tmdbId, movie, clean)
+        }
+        val (id, isMovie, clean) = parsedTarget
 
         if (isMovie) {
             val detailJson = fetchTmdbJson("movie/$id?language=pt-BR")

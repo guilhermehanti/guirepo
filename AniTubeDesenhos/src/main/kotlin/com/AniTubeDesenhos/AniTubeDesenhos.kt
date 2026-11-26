@@ -123,30 +123,47 @@ class AniTubeDesenhos : MainAPI() {
         }
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.isBlank()) return emptyList()
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
 
-        // 1. Prioriza páginas agrupadas de séries/desenhos ("Todos os Episódios")
-        val seriesEncoded = URLEncoder.encode("$query todos os episodios", "UTF-8")
-        val seriesDoc = app.get("$mainUrl/?s=$seriesEncoded", headers = defaultHeaders()).document
-        val seriesResults = seriesDoc.select(".aniItem, .epiItem")
-            .mapNotNull { it.toCardSearchResult("Busca", filterEpisodes = true) }
-            .distinctBy { it.url }
+        for (term in variants) {
+            // 1. Prioriza páginas agrupadas de séries/desenhos ("Todos os Episódios")
+            val seriesEncoded = URLEncoder.encode("$term todos os episodios", "UTF-8")
+            val seriesDoc = app.get("$mainUrl/?s=$seriesEncoded", headers = defaultHeaders()).document
+            val seriesResults = seriesDoc.select(".aniItem, .epiItem")
+                .mapNotNull { it.toCardSearchResult("Busca", filterEpisodes = true) }
+                .distinctBy { it.url }
+            if (seriesResults.isNotEmpty()) return seriesResults
 
-        if (seriesResults.isNotEmpty()) return seriesResults
+            // 2. Fallback para filmes ou títulos sem "Todos os Episódios" no nome
+            val rawEncoded = URLEncoder.encode(term, "UTF-8")
+            val rawDoc = app.get("$mainUrl/?s=$rawEncoded", headers = defaultHeaders()).document
+            val filtered = rawDoc.select(".aniItem, .epiItem")
+                .mapNotNull { it.toCardSearchResult("Busca", filterEpisodes = true) }
+                .distinctBy { it.url }
+            if (filtered.isNotEmpty()) return filtered
 
-        // 2. Fallback para filmes ou títulos sem "Todos os Episódios" no nome (ainda filtrando episódios soltos)
-        val rawEncoded = URLEncoder.encode(query, "UTF-8")
-        val rawDoc = app.get("$mainUrl/?s=$rawEncoded", headers = defaultHeaders()).document
-        val filtered = rawDoc.select(".aniItem, .epiItem")
-            .mapNotNull { it.toCardSearchResult("Busca", filterEpisodes = true) }
-            .distinctBy { it.url }
-
-        return filtered.ifEmpty {
-            rawDoc.select(".aniItem, .epiItem")
+            val fallback = rawDoc.select(".aniItem, .epiItem")
                 .mapNotNull { it.toCardSearchResult("Busca", filterEpisodes = false) }
                 .distinctBy { it.url }
+            if (fallback.isNotEmpty()) return fallback
         }
+        return emptyList()
     }
 
     override suspend fun load(url: String): LoadResponse? {

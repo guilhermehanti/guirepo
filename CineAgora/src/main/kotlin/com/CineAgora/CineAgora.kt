@@ -1,6 +1,7 @@
 package com.CineAgora
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -9,12 +10,14 @@ import org.jsoup.nodes.Element
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.text.SimpleDateFormat
 
-class CineAgora : MainAPI() {
+class CineAgora : TmdbProvider() {
     override var mainUrl = "https://cineagora.club"
     override var name = "CineAgora"
     override val hasMainPage = true
     override var lang = "pt-br"
     override val hasDownloadSupport = true
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     override val usesWebView = false
 
@@ -165,40 +168,54 @@ class CineAgora : MainAPI() {
         return nextPageLinks.isNotEmpty()
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.isBlank()) return emptyList()
-        
-        val searchUrl = mainUrl
-        
-        try {
-            val document = app.post(
-                url = searchUrl,
-                data = mapOf(
-                    "do" to "search",
-                    "subaction" to "search",
-                    "story" to query
-                ),
-                referer = searchUrl,
-                headers = mapOf(
-                    "Content-Type" to "application/x-www-form-urlencoded",
-                    "Origin" to mainUrl,
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-                )
-            ).document
-            
-            return extractSearchResults(document)
-            
-        } catch (e: Exception) {
-            try {
-                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-                val fallbackUrl = "$mainUrl/?do=search&subaction=search&story=$encodedQuery"
-                
-                val document = app.get(fallbackUrl).document
-                return extractSearchResults(document)
-            } catch (e2: Exception) {
-                return emptyList()
-            }
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
         }
+        val searchUrl = mainUrl
+        for (term in variants) {
+            val found = try {
+                val document = app.post(
+                    url = searchUrl,
+                    data = mapOf(
+                        "do" to "search",
+                        "subaction" to "search",
+                        "story" to term
+                    ),
+                    referer = searchUrl,
+                    headers = mapOf(
+                        "Content-Type" to "application/x-www-form-urlencoded",
+                        "Origin" to mainUrl,
+                        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                    )
+                ).document
+                extractSearchResults(document)
+            } catch (e: Exception) {
+                try {
+                    val encodedQuery = java.net.URLEncoder.encode(term, "UTF-8")
+                    val fallbackUrl = "$mainUrl/?do=search&subaction=search&story=$encodedQuery"
+                    val document = app.get(fallbackUrl).document
+                    extractSearchResults(document)
+                } catch (e2: Exception) {
+                    emptyList()
+                }
+            }
+            if (found.isNotEmpty()) return found
+        }
+        return emptyList()
     }
 
     private fun extractSearchResults(document: org.jsoup.nodes.Document): List<SearchResponse> {
@@ -291,8 +308,11 @@ class CineAgora : MainAPI() {
             ?: Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
         
         val cleanTitle = title
+            .replace(Regex("""(?i)^assistir\s+"""), "")
+            .replace(Regex("""(?i)\s*[\(\[]?\s*(dublado|legendado|dual\s*áudio|dual\s*audio|nacional|completo|online|hd|4k)\s*[\)\]]?"""), " ")
             .replace(Regex("\\(\\d{4}\\)"), "")
             .replace(Regex("\\d{4}$"), "")
+            .replace(Regex("\\s+"), " ")
             .trim()
         
         val imgElement = selectFirst("img.thumbnail, img.poster, img")
@@ -924,7 +944,14 @@ class CineAgora : MainAPI() {
         }
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList =
+        newSearchResponseList(if (page == 1) search(query) else emptyList(), false)
+
     override suspend fun load(url: String): LoadResponse? {
+        if (TmdbPtBrBridge.isTmdbInput(url)) {
+            val resolved = TmdbPtBrBridge.resolveUrl(url, ::search) ?: return null
+            return load(resolved)
+        }
         val doc = try {
             val response = app.get(url)
             response.document

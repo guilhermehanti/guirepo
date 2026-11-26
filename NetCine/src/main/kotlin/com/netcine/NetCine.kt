@@ -2,6 +2,7 @@ package com.netcine
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.*
@@ -25,13 +26,15 @@ class NetCinePlugin : Plugin() {
 
 class NetCine internal constructor(
     private val browserStream: NetCineBrowserStream
-) : MainAPI() {
+) : TmdbProvider() {
     override var mainUrl = "https://maskara.lat"
     override var name = "NetCine"
     override var lang = "pt-br"
     override val hasMainPage = true
     override val usesWebView = true
     override val hasDownloadSupport = false
+    override val useMetaLoadResponse = false
+    override val providerType = ProviderType.DirectProvider
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
     override val mainPage = mainPageOf(
@@ -71,13 +74,40 @@ class NetCine internal constructor(
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        if (query.trim().length < 2) return emptyList()
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val doc = app.get("$mainUrl/?s=$encoded", referer = "$mainUrl/").document
-        return NetCatalog.items(doc).map { it.toSearchResponse() }
+        val raw = query.trim()
+        if (raw.length < 2) return emptyList()
+        val variants = buildList {
+            add(raw)
+            val base = raw.substringBefore(":").substringBefore(" - ").trim()
+            if (base.length >= 2 && base != raw) add(base)
+            val asciiRaw = stripDiacritics(raw)
+            if (asciiRaw.length >= 2 && asciiRaw !in this) add(asciiRaw)
+            val asciiBase = stripDiacritics(base)
+            if (asciiBase.length >= 2 && asciiBase !in this) add(asciiBase)
+        }
+        for (term in variants) {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val doc = app.get("$mainUrl/?s=$encoded", referer = "$mainUrl/").document
+            val items = NetCatalog.items(doc).map { it.toSearchResponse() }
+            if (items.isNotEmpty()) return items
+        }
+        return emptyList()
     }
 
+    private fun stripDiacritics(input: String): String =
+        java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .trim()
+
+    override suspend fun search(query: String, page: Int): SearchResponseList =
+        newSearchResponseList(if (page == 1) search(query) else emptyList(), false)
+
     override suspend fun load(url: String): LoadResponse {
+        if (TmdbPtBrBridge.isTmdbInput(url)) {
+            val resolved = TmdbPtBrBridge.resolveUrl(url, ::search)
+                ?: throw ErrorLoadingException("Não encontrado no NetCine")
+            return load(resolved)
+        }
         val doc = app.get(url, referer = "$mainUrl/").document
         val title = doc.selectFirst("h1")?.text()?.trim()?.takeIf { it.isNotBlank() }
             ?: throw ErrorLoadingException("Título não encontrado")
