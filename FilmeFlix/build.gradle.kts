@@ -1,4 +1,4 @@
-version = 4
+version = 5
 
 cloudstream {
     description = "Filmes e Séries Dublados e Nacionais em HD no FilmeFlix (Vidmoly e Abyss)"

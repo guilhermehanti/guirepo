@@ -18,12 +18,25 @@ internal class AbyssResolver(private val proxy: AbyssProxy) {
         val mp4 = media.getJSONObject("mp4")
         val sources = mp4.getJSONArray("sources")
         val referer = URI(url).let { "${it.scheme}://${it.authority}/" }
+
+        val activeSources = (0 until sources.length())
+            .map { sources.getJSONObject(it) }
+            .filter { it.optBoolean("status", false) }
+            .sortedWith(
+                compareByDescending<JSONObject> {
+                    Regex("\\d+").find(it.optString("label", ""))?.value?.toIntOrNull() ?: 0
+                }.thenByDescending { it.optLong("size", 0L) }
+            )
+
+        val seenQualityCounts = mutableMapOf<Int, Int>()
         var found = false
-        for (i in 0 until sources.length()) {
-            val source = sources.getJSONObject(i)
-            if (!source.optBoolean("status", false)) continue
+        for (source in activeSources) {
             val quality = source.optString("label", "MP4")
             val height = Regex("\\d+").find(quality)?.value?.toIntOrNull() ?: Qualities.Unknown.value
+            val occurrence = (seenQualityCounts[height] ?: 0) + 1
+            seenQualityCounts[height] = occurrence
+            val linkName = if (occurrence > 1) "Abyss • $label (Alt $occurrence)" else "Abyss • $label"
+
             val path = source.optString("path").trimStart('/')
             val base = source.optString("url").trimEnd('/')
             if (path.isBlank() || base.isBlank()) {
@@ -34,7 +47,7 @@ internal class AbyssResolver(private val proxy: AbyssProxy) {
                 val size = source.getLong("size")
                 val route = "/mp4/${data.get("md5_id")}/${source.get("res_id")}/$size?v=${data.getString("slug")}"
                 val native = "https://$domain/sora/$size/${AbyssProtocol.legacyToken(route, size)}"
-                callback(newExtractorLink("FilmeFlix", "Abyss • $label • $quality", native, ExtractorLinkType.VIDEO) {
+                callback(newExtractorLink("FilmeFlix", linkName, native, ExtractorLinkType.VIDEO) {
                     this.quality = height; this.referer = referer
                 })
                 found = true
@@ -51,7 +64,7 @@ internal class AbyssResolver(private val proxy: AbyssProxy) {
             val partSize = source.optLong("partSize").takeIf { it > 0 } ?: size
             val local = proxy.register(AbyssProxy.Source(origins.distinct(), size, partSize,
                 path.substringAfterLast('/'), referer))
-            callback(newExtractorLink("FilmeFlix", "Abyss • $label • $quality", local, ExtractorLinkType.VIDEO) {
+            callback(newExtractorLink("FilmeFlix", linkName, local, ExtractorLinkType.VIDEO) {
                 this.quality = height
             })
             found = true

@@ -61,13 +61,17 @@ class UltraCineTV internal constructor(
         val title = doc.selectFirst("h1.entry-title")?.text() ?: throw ErrorLoadingException("Título não encontrado")
         val panel = doc.selectFirst("iframe[src*=painel-aso]")?.absUrl("src")
             ?: throw ErrorLoadingException("Player não encontrado")
-        val poster = doc.selectFirst("article.single img")?.let { img ->
+        val poster = (doc.selectFirst("article.single img[src*='tmdb.org'], article.single img[data-src*='tmdb.org']")
+            ?: doc.selectFirst("img[src*='image.tmdb.org/t/p/'], img[data-src*='image.tmdb.org/t/p/']")
+            ?: doc.selectFirst("article.single img"))?.let { img ->
             val raw = img.attr("data-src").ifBlank { img.attr("src") }.trim()
-            when {
+            val normalized = when {
                 raw.startsWith("//") -> "https:$raw"
-                raw.isNotBlank() -> fixUrl(raw)
+                raw.startsWith("http://") || raw.startsWith("https://") -> raw
+                raw.isNotBlank() && !raw.startsWith("data:") -> fixUrl(raw)
                 else -> null
             }
+            normalized?.replace("/w185/", "/w500/")?.replace("/w154/", "/w500/")
         }
         val plot = doc.selectFirst(".description")?.text()
         if (url.contains("/serie/")) {
