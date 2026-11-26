@@ -45,12 +45,12 @@
         "iconUrl": "https://www.anitube.zip/wp-content/uploads/cropped-Favicon6-192x192.png",
         "fileHash": "sha256-d6de91718f557196d2db64934829637ac512a30e4a24553ce8b4d9f5a9d23b71",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 36019,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Anime",
@@ -66,7 +66,7 @@
         "iconUrl": "https://www.anitube.biz/wp-content/themes/anitube_sarthemes/img/favicon-512.png?v=3",
         "fileHash": "sha256-5fb128cc6a106a34e0da65a0e20de5c36121b347752f5898ae0fcd2220f9de08",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 23831,
         "status": 1,
         "language": "pt-br",
@@ -131,12 +131,12 @@
         "iconUrl": "https://cineagora.club/templates/cineagora/images/touch-icon-180x180.png",
         "fileHash": "sha256-27a433ea18cec26868ddd95ba1832f6616ee63f3cbab46584b7d0c1406dba783",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 70298,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Movie",
@@ -158,7 +158,6 @@
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr",
             "guilhermehanti"
         ],
         "tvTypes": [
@@ -176,12 +175,12 @@
         "iconUrl": "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/embedtv.png",
         "fileHash": "sha256-7e1cfc647c5862b8705fc5e958a42dc45399852ae6521870e51f751f3f82bb2b",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 14078,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Live"
@@ -196,12 +195,12 @@
         "iconUrl": "https://filmeflix.work/wp-content/uploads/2026/09/cropped-android-chrome-512x512-1-192x192.png",
         "fileHash": "sha256-f041281e00211c2ccd1ab65657e0fb885a751f8a548269896659eb4d33b3d52e",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 50466,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Movie",
@@ -286,7 +285,6 @@
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr",
             "guilhermehanti"
         ],
         "tvTypes": [
@@ -347,12 +345,12 @@
         "iconUrl": "https://www.image2url.com/r2/default/images/1776423716151-20e5aa74-a764-4d60-8575-0851d8ab37df.png",
         "fileHash": "sha256-6d8a34cfa4d190ddccb97b4cd95b5f161dbbcfb8d638118270af7aa2b31315a9",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 24950,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Live"
@@ -367,12 +365,12 @@
         "iconUrl": "https://topflix.actor/apple-touch-icon.png",
         "fileHash": "sha256-9923f083184593793dfd4e2d9919a5c02d258602476e2b15bdc70211bfb321db",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
         "fileSize": 33195,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "guilhermehanti"
         ],
         "tvTypes": [
             "Movie",
