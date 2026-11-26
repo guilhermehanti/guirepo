@@ -1,10 +1,10 @@
 [
     {
         "iconUrl": "https://animefire.one/favicons/favicon-192x192.png",
-        "fileHash": "sha256-7d4b87f54894caf311188ef2d7885f282e5bc86ac81b693a073d5113d41718ac",
+        "fileHash": "sha256-afeb2d82c3b51b05c9a85d57ad7197276cc90bf84aad8bd31252765f330f4db9",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 20552,
+        "fileSize": 21202,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -14,7 +14,7 @@
             "Anime",
             "AnimeMovie"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "AnimeFire",
         "description": "Animes e Filmes Dublados e Legendados em Full HD no AnimeFire",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/AnimeFire.cs3",
@@ -22,10 +22,10 @@
     },
     {
         "iconUrl": "https://animesfhd.net/assets/img/pwa/apple-touch-icon-180.png",
-        "fileHash": "sha256-b125b51785c1c1a5ab2aeabaa64eb421e363cb9af5e679bc5aa98c00a2b18100",
+        "fileHash": "sha256-765343c22dfa63bfce754871feb527cd478d2eef5ccb79109ca3c6feeb248628",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 29248,
+        "fileSize": 29821,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -35,7 +35,7 @@
             "Anime",
             "AnimeMovie"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "AnimesFHD",
         "description": "Animes Dublados e Legendados em Full HD com m\u00faltiplos servidores no AnimesFHD",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/AnimesFHD.cs3",
@@ -43,19 +43,20 @@
     },
     {
         "iconUrl": "https://www.anitube.zip/wp-content/uploads/cropped-Favicon6-192x192.png",
-        "fileHash": "sha256-cc333e5590f14470282a5877d6f608da9818b6f17043180b07804090bd4a648a",
+        "fileHash": "sha256-d6de91718f557196d2db64934829637ac512a30e4a24553ce8b4d9f5a9d23b71",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 34692,
+        "fileSize": 36019,
         "status": 1,
         "language": "pt-br",
         "authors": [
             "lawlietbr"
         ],
         "tvTypes": [
-            "Animes"
+            "Anime",
+            "AnimeMovie"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "AniTube",
         "description": "AniTube \u00e9 um site para assistir seus animes favoritos online e de onde quiser, temos uma lista completa com diversos animes recentes e antigos para voc\u00ea explorar e o melhor disso tudo \u00e9 a qualidade do nosso site que o diferencia de outros.",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/AniTube.cs3",
@@ -63,10 +64,10 @@
     },
     {
         "iconUrl": "https://www.anitube.biz/wp-content/themes/anitube_sarthemes/img/favicon-512.png?v=3",
-        "fileHash": "sha256-6520a4fd8e52f498a56956c640c06ddf6c036341c48e73e8f9ac8b98664ee92d",
+        "fileHash": "sha256-5fb128cc6a106a34e0da65a0e20de5c36121b347752f5898ae0fcd2220f9de08",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 22975,
+        "fileSize": 23831,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -78,7 +79,7 @@
             "TvSeries",
             "Movie"
         ],
-        "version": 5,
+        "version": 6,
         "internalName": "AniTubeDesenhos",
         "description": "Desenhos (Cartoon Network, Disney, Cl\u00e1ssicos), Animes Dublados e Filmes no AniTube.biz",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/AniTubeDesenhos.cs3",
@@ -86,10 +87,10 @@
     },
     {
         "iconUrl": "https://brflix.lat/favicon.png?v=2.3.2",
-        "fileHash": "sha256-6756c9c87fa2fe70de7c01fc09f2f715a42210f578c59b31712ff82da06633d7",
+        "fileHash": "sha256-afd8f16ff03a165934fe4afda3ac463889f4f14e4d6f7b03f66f595a057124f0",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 159684,
+        "fileSize": 161113,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -100,7 +101,7 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 11,
+        "version": 12,
         "internalName": "BRFlix",
         "description": "Filmes, S\u00e9ries e Animes Dublados e Legendados em HD no BRFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/BRFlix.cs3",
@@ -128,21 +129,21 @@
     },
     {
         "iconUrl": "https://cineagora.club/templates/cineagora/images/touch-icon-180x180.png",
-        "fileHash": "sha256-aed4cedf0e589f20d6ce6931eaf0a4d25e367e40c0fa46c44b5503100763b5e8",
+        "fileHash": "sha256-27a433ea18cec26868ddd95ba1832f6616ee63f3cbab46584b7d0c1406dba783",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 62659,
+        "fileSize": 70298,
         "status": 1,
         "language": "pt-br",
         "authors": [
             "lawlietbr"
         ],
         "tvTypes": [
-            "Movies",
-            "Series",
-            "Animes"
+            "Movie",
+            "TvSeries",
+            "Anime"
         ],
-        "version": 5,
+        "version": 6,
         "internalName": "CineAgora",
         "description": "Assista filmes e s\u00e9ries online gr\u00e1tis em HD no CineAgora",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/CineAgora.cs3",
@@ -150,10 +151,10 @@
     },
     {
         "iconUrl": "https://www.dattebayo-br.com/favicon.png",
-        "fileHash": "sha256-7af9742908c9da828f9d18e0dff36ab576f32cc53ac48e6fe4581aaeb5dc53a4",
+        "fileHash": "sha256-57fd9eae2fcf5fc8ea9104f3c7e60d00589654c390d03129abe45220926b8ef1",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 26399,
+        "fileSize": 27496,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -165,7 +166,7 @@
             "AnimeMovie",
             "AsianDrama"
         ],
-        "version": 2,
+        "version": 3,
         "internalName": "DattebayoBR",
         "description": "DattebayoBR Animes Online",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/DattebayoBR.cs3",
@@ -193,21 +194,21 @@
     },
     {
         "iconUrl": "https://filmeflix.work/wp-content/uploads/2026/09/cropped-android-chrome-512x512-1-192x192.png",
-        "fileHash": "sha256-5b0ef663920cfcb2fbd8cc9886483ac0fc12b7fef77734adbac9846358e9ee37",
+        "fileHash": "sha256-f041281e00211c2ccd1ab65657e0fb885a751f8a548269896659eb4d33b3d52e",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 42433,
+        "fileSize": 50466,
         "status": 1,
         "language": "pt-br",
         "authors": [
             "lawlietbr"
         ],
         "tvTypes": [
-            "Movies",
-            "Series",
+            "Movie",
+            "TvSeries",
             "Cartoon"
         ],
-        "version": 5,
+        "version": 6,
         "internalName": "FilmeFlix",
         "description": "Filmes e S\u00e9ries Dublados e Nacionais em HD no FilmeFlix (Vidmoly e Abyss)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/FilmeFlix.cs3",
@@ -215,10 +216,10 @@
     },
     {
         "iconUrl": "https://kairou.space/apple-touch-icon.png",
-        "fileHash": "sha256-51c9fbb45a72fd36723967917bef68480fcd4913e0ca22fff7d18a472d2007c9",
+        "fileHash": "sha256-26b625bd3b0042865d5a5a6eba87be7d407813322d5382529bc0e141990e0edb",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 31973,
+        "fileSize": 36998,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -229,18 +230,39 @@
             "TvSeries",
             "Anime"
         ],
-        "version": 5,
+        "version": 6,
         "internalName": "Kairou",
         "description": "Filmes, S\u00e9ries e Animes em 4K/HD Dublados e Legendados no Kairou (sem Cloudflare)",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/Kairou.cs3",
         "name": "Kairou"
     },
     {
-        "iconUrl": "https://noveflix.lol/wp-content/uploads/2026/09/cropped-download-192x192.png",
-        "fileHash": "sha256-416c7572fa1195bb19ad8f0f50acf339c2c19ac55c24b9a0b2358d2049369512",
+        "iconUrl": "https://cdn.bcdn.zip/wp-content/uploads/2016/09/favicon-nc-1.png",
+        "fileHash": "sha256-05a37849f1d02e1cf5bcb99bf4872e2f41c91bde02b4667b62a49795fe1f8385",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 26302,
+        "fileSize": 55185,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 2,
+        "internalName": "NetCine",
+        "description": "Filmes e S\u00e9ries Dublados e Legendados no NetCine (maskara.lat)",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/NetCine.cs3",
+        "name": "NetCine"
+    },
+    {
+        "iconUrl": "https://noveflix.lol/wp-content/uploads/2026/09/cropped-download-192x192.png",
+        "fileHash": "sha256-62eb5269806577bd09fe2d3ce2ffbb856f11e95beedb2c17623f7f04be17fc13",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 26850,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -249,7 +271,7 @@
         "tvTypes": [
             "TvSeries"
         ],
-        "version": 3,
+        "version": 4,
         "internalName": "NoveFlix",
         "description": "Novelas Brasileiras, Turcas, Mexicanas e Programas completos em HD no NoveFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/NoveFlix.cs3",
@@ -257,10 +279,10 @@
     },
     {
         "iconUrl": "https://www.pobreflixtvfilmes.com/assets/img/favicon.png",
-        "fileHash": "sha256-9225c7d3d005a6eb76e68a3838ab26e0d095d9fc19e23cf4a7c42f110348374a",
+        "fileHash": "sha256-a586dd25aa8254e945d064e21b7e5548333aa9265a7f9f0a7119d0cbe63899ef",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 142238,
+        "fileSize": 150240,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -268,11 +290,11 @@
             "guilhermehanti"
         ],
         "tvTypes": [
-            "Movies",
-            "Series",
+            "Movie",
+            "TvSeries",
             "Cartoon"
         ],
-        "version": 4,
+        "version": 5,
         "internalName": "PobreFlixTV",
         "description": "Filmes, S\u00e9ries e Anima\u00e7\u00f5es Dublados e Legendados em HD no PobreFlixTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/PobreFlixTV.cs3",
@@ -280,10 +302,10 @@
     },
     {
         "iconUrl": "https://raw.githubusercontent.com/guilhermehanti/guirepo/main/icons/redecanais.png",
-        "fileHash": "sha256-7d8cdfb41208ecfbae95ac52aa82c44d93468b925893d47a01b922504314bc81",
+        "fileHash": "sha256-022529a37b8b08564c113f307842836810f9e5e69da14e64905f9e07ce61a948",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 24883,
+        "fileSize": 59416,
         "status": 1,
         "language": "pt-br",
         "authors": [
@@ -295,7 +317,7 @@
             "Anime",
             "Movie"
         ],
-        "version": 3,
+        "version": 6,
         "internalName": "RedeCanais",
         "description": "Filmes, S\u00e9ries, Desenhos e Animes Dublados e Legendados em HD no RedeCanais",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/RedeCanais.cs3",
@@ -343,20 +365,20 @@
     },
     {
         "iconUrl": "https://topflix.actor/apple-touch-icon.png",
-        "fileHash": "sha256-2d00f4ca4732ca497aadff922a0c4595b7fd6f7867e3e68b59a80480d7c4c08b",
+        "fileHash": "sha256-9923f083184593793dfd4e2d9919a5c02d258602476e2b15bdc70211bfb321db",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 25118,
+        "fileSize": 33195,
         "status": 1,
         "language": "pt-br",
         "authors": [
             "lawlietbr"
         ],
         "tvTypes": [
-            "Movies",
-            "Series"
+            "Movie",
+            "TvSeries"
         ],
-        "version": 3,
+        "version": 4,
         "internalName": "TopFlix",
         "description": "Filmes e S\u00e9ries Online em HD no TopFlix",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/TopFlix.cs3",
@@ -384,20 +406,20 @@
     },
     {
         "iconUrl": "https://www.ultracinetv.lat/wp-content/uploads/2024/07/cropped-favicon-300x300.png",
-        "fileHash": "sha256-7a1c0f77bb63e8bd34b839d9e1e7c9675266d91ec1bed59199983722f93725df",
+        "fileHash": "sha256-4690fd22043c5056ed89b973a577e72ed08d232105ffb821f91d025029148505",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
-        "fileSize": 163298,
+        "fileSize": 171333,
         "status": 1,
         "language": "pt-br",
         "authors": [
             "guilhermehanti"
         ],
         "tvTypes": [
-            "Movies",
-            "Series"
+            "Movie",
+            "TvSeries"
         ],
-        "version": 9,
+        "version": 10,
         "internalName": "UltraCineTV",
         "description": "Filmes e S\u00e9ries Dublados e Legendados em HD no UltraCineTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/UltraCineTV.cs3",
