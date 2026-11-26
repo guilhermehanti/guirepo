@@ -1,5 +1,47 @@
 [
     {
+        "iconUrl": "https://animefire.one/favicons/favicon-192x192.png",
+        "fileHash": "sha256-7d4b87f54894caf311188ef2d7885f282e5bc86ac81b693a073d5113d41718ac",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 20552,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie"
+        ],
+        "version": 1,
+        "internalName": "AnimeFire",
+        "description": "Animes e Filmes Dublados e Legendados em Full HD no AnimeFire",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/AnimeFire.cs3",
+        "name": "AnimeFire"
+    },
+    {
+        "iconUrl": "https://animesfhd.net/assets/img/pwa/apple-touch-icon-180.png",
+        "fileHash": "sha256-b125b51785c1c1a5ab2aeabaa64eb421e363cb9af5e679bc5aa98c00a2b18100",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 29248,
+        "status": 1,
+        "language": "pt-br",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie"
+        ],
+        "version": 1,
+        "internalName": "AnimesFHD",
+        "description": "Animes Dublados e Legendados em Full HD com m\u00faltiplos servidores no AnimesFHD",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/AnimesFHD.cs3",
+        "name": "AnimesFHD"
+    },
+    {
         "iconUrl": "https://www.anitube.zip/wp-content/uploads/cropped-Favicon6-192x192.png",
         "fileHash": "sha256-cc333e5590f14470282a5877d6f608da9818b6f17043180b07804090bd4a648a",
         "apiVersion": 1,
@@ -108,19 +150,22 @@
     },
     {
         "iconUrl": "https://www.dattebayo-br.com/favicon.png",
-        "fileHash": "sha256-608e65ca1626cb1ab9bd113a022268e10dd5f56dafa72be62b5abafc7582a921",
+        "fileHash": "sha256-7af9742908c9da828f9d18e0dff36ab576f32cc53ac48e6fe4581aaeb5dc53a4",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/lawlietbr/lietrepo",
-        "fileSize": 26479,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 26399,
         "status": 1,
         "language": "pt-br",
         "authors": [
-            "lawlietbr"
+            "lawlietbr",
+            "guilhermehanti"
         ],
         "tvTypes": [
-            "Anime, AsianDrama"
+            "Anime",
+            "AnimeMovie",
+            "AsianDrama"
         ],
-        "version": 1,
+        "version": 2,
         "internalName": "DattebayoBR",
         "description": "DattebayoBR Animes Online",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/DattebayoBR.cs3",
