@@ -1,0 +1,38 @@
+name: Deploy GuiRepo Sports Addon (Cloudflare Workers)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'guirepo-sports-addon/**'
+      - '.github/workflows/deploy-sports-addon.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Cloudflare Worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Cloudflare secrets
+        id: cf_check
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [[ -n "$CF_TOKEN" && -n "$CF_ACCOUNT" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLOUDFLARE_API_TOKEN e/ou CLOUDFLARE_ACCOUNT_ID ainda não configurados nos Secrets do repositório. Deploy automático pulado."
+          fi
+
+      - name: Deploy to Cloudflare Workers
+        if: steps.cf_check.outputs.configured == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: guirepo-sports-addon

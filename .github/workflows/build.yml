@@ -6,7 +6,9 @@ on:
       - main
     paths-ignore:
       - 'guirepo-tv-addon/**'
+      - 'guirepo-sports-addon/**'
       - '.github/workflows/deploy-tv-addon.yml'
+      - '.github/workflows/deploy-sports-addon.yml'
       - 'README.md'
   workflow_dispatch:
 

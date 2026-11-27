@@ -1,0 +1,10 @@
+{
+  "name": "guirepo-sports-addon",
+  "version": "1.0.0",
+  "description": "Stremio / NuvioTV Addon de Replays Esportivos (WatchMMAFull, WatchF1Full e Footballia com /configure)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test/smoke.mjs"
+  }
+}
