@@ -214,6 +214,27 @@
         "name": "FilmeFlix"
     },
     {
+        "iconUrl": "https://footballia.net/favicon.ico",
+        "fileHash": "sha256-3a10d53f7712887d58daba58d42f09308531e462427f6059c678bb68f2f002db",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 28683,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "Footballia",
+        "description": "Jogos hist\u00f3ricos completos de futebol no Footballia (requer conta gratuita configurada em \u2699\ufe0f)",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/Footballia.cs3",
+        "name": "Footballia"
+    },
+    {
         "iconUrl": "https://kairou.space/apple-touch-icon.png",
         "fileHash": "sha256-26b625bd3b0042865d5a5a6eba87be7d407813322d5382529bc0e141990e0edb",
         "apiVersion": 1,
@@ -422,5 +443,47 @@
         "description": "Filmes e S\u00e9ries Dublados e Legendados em HD no UltraCineTV",
         "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/UltraCineTV.cs3",
         "name": "UltraCineTV"
+    },
+    {
+        "iconUrl": "https://watchf1full.com/uploads/images/2026/08/32365e513609f68d5da404fe22a5a262.png",
+        "fileHash": "sha256-046768e1f97458153bc08ddba8eecfe01cd4cdf5595ff80d92c3c8ce3f1b1105",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 34923,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "WatchF1Full",
+        "description": "Replays completos de F1, F2, F3, MotoGP, Moto2 e Moto3 agrupados por GP e categoria",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/WatchF1Full.cs3",
+        "name": "WatchF1Full"
+    },
+    {
+        "iconUrl": "https://watchmmafull.com/pwa-icon/192?v=2",
+        "fileHash": "sha256-794034d25c45bd7589f73dd8b46d8a50975a0e36e7febd8f136300d84aef5306",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/guilhermehanti/guirepo",
+        "fileSize": 25277,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "guilhermehanti"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "WatchMMAFull",
+        "description": "Replays completos de eventos de MMA e UFC (cada evento como s\u00e9rie e cada luta como epis\u00f3dio)",
+        "url": "https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/WatchMMAFull.cs3",
+        "name": "WatchMMAFull"
     }
 ]
