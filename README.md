@@ -30,16 +30,11 @@ No **CloudStream**, basta instalar o repositório uma única vez — ele já tra
    ```text
    https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/repo.json
    ```
+4. *(Opcional)* Para o plugin **Footballia** (jogos completos gravados): exige uma conta gratuita em [footballia.net](https://footballia.net/users/sign_up).
+   - Vá em **Configurações → Extensões → GuiRepo → Footballia → ⚙️**.
+   - Informe seu **e-mail e senha** do Footballia e toque em **Salvar** *(os dados ficam gravados apenas no seu aparelho)*.
 
 [![Copiar URL do Repositório](https://img.shields.io/badge/📋_COPIAR_URL-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/guilhermehanti/guirepo/raw/refs/heads/main/builds/repo.json)
-
-### 🥊🏎️⚽ Plugins de Replays Esportivos no CloudStream
-- **WatchMMAFull:** cada evento abre como uma **Série**. Escolha em **Temporadas** se deseja ver **Main Card** ou **Prelims**, e em **Episódios** selecione a luta desejada.
-- **WatchF1Full:** GPs agrupados separadamente por categoria (**F1, F2, F3, MotoGP, Moto2 e Moto3**). Escolha em **Episódios** qual sessão deseja assistir (*Treino Livre / Practice, Classificação / Qualifying, Sprint, Corrida / Race, etc.*). Nas sessões que usam o redirecionador `lkss.site`, aguarde cerca de ~11s ao dar Play enquanto os servidores são desbloqueados automaticamente.
-- **Footballia (Jogos Históricos de Futebol):** exige uma conta gratuita em [footballia.net](https://footballia.net/users/sign_up).
-  1. Vá em **Configurações → Extensões → GuiRepo → Footballia → ⚙️**.
-  2. Informe seu **e-mail e senha** do Footballia e toque em **Salvar** *(os dados ficam gravados apenas no seu aparelho)*.
-  3. A busca do plugin pesquisa diretamente por **Time** (ex.: *Corinthians*, *Ponte Preta*, *Real Madrid*), abrindo todas as partidas históricas da equipe como episódios.
 
 ---
 
